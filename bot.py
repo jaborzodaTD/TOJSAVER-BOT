@@ -31,7 +31,7 @@ from telegram.ext import (
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # ВСТАВЬ СЮДА СВОЙ СУЩЕСТВУЮЩИЙ ADMIN_ID
-ADMIN_ID = 0
+ADMIN_ID = 8479464985
 
 DB_FILE = "tojsaver.db"
 
