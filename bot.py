@@ -14,7 +14,17 @@ from telegram.ext import (
 )
 
 TOKEN = os.getenv("BOT_TOKEN")
+
+# =========================================================
+# 🔐 ADMIN
+# =========================================================
+# ВСТАВЬ СЮДА СВОЙ TELEGRAM USER ID
 ADMIN_ID = 8479464985
+
+
+# =========================================================
+# 🔗 SUPPORTED LINKS
+# =========================================================
 URL_PATTERN = re.compile(
     r"https?://(?:www\.)?"
     r"(?:instagram\.com|youtube\.com|youtu\.be|tiktok\.com)"
@@ -22,6 +32,10 @@ URL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+
+# =========================================================
+# 🌍 LANGUAGES
+# =========================================================
 TEXTS = {
     "ru": {
         "welcome": (
@@ -36,24 +50,60 @@ TEXTS = {
         "stats": "📊 Моя статистика",
         "language": "🌐 Язык",
         "back": "⬅️ Назад",
-        "send_link_video": "🎬 <b>Отправь ссылку на видео:</b>",
-        "send_link_audio": "🎵 <b>Отправь ссылку на музыку:</b>",
+
+        "send_link_video": (
+            "🎬 <b>Отправь ссылку на видео:</b>"
+        ),
+        "send_link_audio": (
+            "🎵 <b>Отправь ссылку на музыку:</b>"
+        ),
+
         "choose_format": "📥 <b>Выбери формат:</b>",
+
         "video": "🎬 Видео",
         "audio": "🎵 MP3",
-        "processing_video": "⏳ Скачиваю видео...",
-        "processing_audio": "⏳ Скачиваю музыку...",
-        "video_ready": "✅ <b>Видео готово!</b>",
-        "audio_ready": "✅ <b>Музыка готова!</b>",
-        "error": "❌ Не удалось скачать файл.\n\nПопробуй другую публичную ссылку.",
-        "bad_link": "🔗 Отправь корректную ссылку Instagram, YouTube или TikTok.",
-        "language_title": "🌐 <b>Выбери язык:</b>",
-        "language_changed": "✅ Язык изменён.",
+
+        "processing_video": (
+            "⏳ Скачиваю видео..."
+        ),
+        "processing_audio": (
+            "⏳ Скачиваю музыку..."
+        ),
+
+        "video_ready": (
+            "✅ <b>Видео готово!</b>"
+        ),
+        "audio_ready": (
+            "✅ <b>Музыка готова!</b>"
+        ),
+
+        "error": (
+            "❌ Не удалось скачать файл.\n\n"
+            "Попробуй другую публичную ссылку."
+        ),
+
+        "bad_link": (
+            "🔗 Отправь корректную ссылку "
+            "Instagram, YouTube или TikTok."
+        ),
+
+        "language_title": (
+            "🌐 <b>Выбери язык:</b>"
+        ),
+
+        "language_changed": (
+            "✅ Язык изменён."
+        ),
+
         "stats_text": (
             "📊 <b>Моя статистика</b>\n\n"
             "🎬 Скачано видео: <b>{video}</b>\n"
-            "🎵 Скачано MP3: <b>{audio}</b>\n\n"
-            "🚀 <b>TOJSAVER</b>"
+            "🎵 Скачано MP3: <b>{audio}</b>\n"
+            "📥 Всего: <b>{total}</b>"
+        ),
+
+        "admin_denied": (
+            "⛔ Доступ запрещён."
         ),
     },
 
@@ -70,24 +120,62 @@ TEXTS = {
         "stats": "📊 Статистикаи ман",
         "language": "🌐 Забон",
         "back": "⬅️ Бозгашт",
-        "send_link_video": "🎬 <b>Линкаи видеоро фирист:</b>",
-        "send_link_audio": "🎵 <b>Линкаи мусиқиро фирист:</b>",
-        "choose_format": "📥 <b>Форматро интихоб кун:</b>",
+
+        "send_link_video": (
+            "🎬 <b>Линкаи видеоро фирист:</b>"
+        ),
+        "send_link_audio": (
+            "🎵 <b>Линкаи мусиқиро фирист:</b>"
+        ),
+
+        "choose_format": (
+            "📥 <b>Форматро интихоб кун:</b>"
+        ),
+
         "video": "🎬 Видео",
         "audio": "🎵 MP3",
-        "processing_video": "⏳ Видео зеркашӣ шуда истодааст...",
-        "processing_audio": "⏳ Мусиқӣ зеркашӣ шуда истодааст...",
-        "video_ready": "✅ <b>Видео тайёр!</b>",
-        "audio_ready": "✅ <b>Мусиқӣ тайёр!</b>",
-        "error": "❌ Файлро зеркашӣ карда натавонистам.\n\nЛинкаи дигарро санҷ.",
-        "bad_link": "🔗 Линкаи дурусти Instagram, YouTube ё TikTok-ро фирист.",
-        "language_title": "🌐 <b>Забонро интихоб кун:</b>",
-        "language_changed": "✅ Забон иваз шуд.",
+
+        "processing_video": (
+            "⏳ Видео зеркашӣ шуда истодааст..."
+        ),
+        "processing_audio": (
+            "⏳ Мусиқӣ зеркашӣ шуда истодааст..."
+        ),
+
+        "video_ready": (
+            "✅ <b>Видео тайёр!</b>"
+        ),
+        "audio_ready": (
+            "✅ <b>Мусиқӣ тайёр!</b>"
+        ),
+
+        "error": (
+            "❌ Файлро зеркашӣ карда натавонистам.\n\n"
+            "Линкаи дигарро санҷ."
+        ),
+
+        "bad_link": (
+            "🔗 Линкаи дурусти Instagram, "
+            "YouTube ё TikTok-ро фирист."
+        ),
+
+        "language_title": (
+            "🌐 <b>Забонро интихоб кун:</b>"
+        ),
+
+        "language_changed": (
+            "✅ Забон иваз шуд."
+        ),
+
         "stats_text": (
             "📊 <b>Статистикаи ман</b>\n\n"
             "🎬 Видеоҳои зеркашишуда: <b>{video}</b>\n"
-            "🎵 MP3-ҳои зеркашишуда: <b>{audio}</b>\n\n"
-            "🚀 <b>TOJSAVER</b>"
+            "🎵 MP3-ҳои зеркашишуда: <b>{audio}</b>\n"
+            "📥 Ҳамагӣ: <b>{total}</b>"
+        ),
+
+        "admin_denied": (
+            "⛔ Дастрасӣ манъ аст."
         ),
     },
 
@@ -104,37 +192,104 @@ TEXTS = {
         "stats": "📊 My Statistics",
         "language": "🌐 Language",
         "back": "⬅️ Back",
-        "send_link_video": "🎬 <b>Send a video link:</b>",
-        "send_link_audio": "🎵 <b>Send a music link:</b>",
-        "choose_format": "📥 <b>Choose format:</b>",
+
+        "send_link_video": (
+            "🎬 <b>Send a video link:</b>"
+        ),
+        "send_link_audio": (
+            "🎵 <b>Send a music link:</b>"
+        ),
+
+        "choose_format": (
+            "📥 <b>Choose format:</b>"
+        ),
+
         "video": "🎬 Video",
         "audio": "🎵 MP3",
-        "processing_video": "⏳ Downloading video...",
-        "processing_audio": "⏳ Downloading music...",
-        "video_ready": "✅ <b>Video ready!</b>",
-        "audio_ready": "✅ <b>Music ready!</b>",
-        "error": "❌ Failed to download the file.\n\nTry another public link.",
-        "bad_link": "🔗 Send a valid Instagram, YouTube or TikTok link.",
-        "language_title": "🌐 <b>Choose language:</b>",
-        "language_changed": "✅ Language changed.",
+
+        "processing_video": (
+            "⏳ Downloading video..."
+        ),
+        "processing_audio": (
+            "⏳ Downloading music..."
+        ),
+
+        "video_ready": (
+            "✅ <b>Video ready!</b>"
+        ),
+        "audio_ready": (
+            "✅ <b>Music ready!</b>"
+        ),
+
+        "error": (
+            "❌ Failed to download the file.\n\n"
+            "Try another public link."
+        ),
+
+        "bad_link": (
+            "🔗 Send a valid Instagram, "
+            "YouTube or TikTok link."
+        ),
+
+        "language_title": (
+            "🌐 <b>Choose language:</b>"
+        ),
+
+        "language_changed": (
+            "✅ Language changed."
+        ),
+
         "stats_text": (
             "📊 <b>My Statistics</b>\n\n"
             "🎬 Videos downloaded: <b>{video}</b>\n"
-            "🎵 MP3 files downloaded: <b>{audio}</b>\n\n"
-            "🚀 <b>TOJSAVER</b>"
+            "🎵 MP3 files downloaded: <b>{audio}</b>\n"
+            "📥 Total: <b>{total}</b>"
+        ),
+
+        "admin_denied": (
+            "⛔ Access denied."
         ),
     },
 }
 
 
+# =========================================================
+# 🧠 HELPERS
+# =========================================================
 def get_lang(context):
     return context.user_data.get("lang", "ru")
 
 
-def main_keyboard(lang):
+def is_admin(update):
+    user = update.effective_user
+
+    if not user:
+        return False
+
+    return user.id == ADMIN_ID
+
+
+def register_user(update, context):
+    user = update.effective_user
+
+    if not user:
+        return
+
+    users = context.application.bot_data.setdefault(
+        "users",
+        set()
+    )
+
+    users.add(user.id)
+
+
+# =========================================================
+# 🏠 MAIN MENU
+# =========================================================
+def main_keyboard(lang, show_admin=False):
     t = TEXTS[lang]
 
-    return InlineKeyboardMarkup([
+    keyboard = [
         [
             InlineKeyboardButton(
                 t["download_video"],
@@ -157,17 +312,47 @@ def main_keyboard(lang):
                 callback_data="language"
             ),
         ],
-    ])
+    ]
+
+    if show_admin:
+        keyboard.append([
+            InlineKeyboardButton(
+                "👑 Админ-панель",
+                callback_data="admin_panel"
+            )
+        ])
+
+    return InlineKeyboardMarkup(keyboard)
 
 
 def language_keyboard(lang):
     t = TEXTS[lang]
 
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🇹🇯 Тоҷикӣ", callback_data="lang_tg")],
-        [InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru")],
-        [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")],
-        [InlineKeyboardButton(t["back"], callback_data="back")],
+        [
+            InlineKeyboardButton(
+                "🇹🇯 Тоҷикӣ",
+                callback_data="lang_tg"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🇷🇺 Русский",
+                callback_data="lang_ru"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🇬🇧 English",
+                callback_data="lang_en"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                t["back"],
+                callback_data="back"
+            )
+        ],
     ])
 
 
@@ -205,89 +390,135 @@ def format_keyboard(lang):
     ])
 
 
-async def show_main_menu_message(message, context):
+# =========================================================
+# 👑 ADMIN MENU
+# =========================================================
+def admin_keyboard():
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "📊 Статистика",
+                callback_data="admin_stats"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "👥 Пользователи",
+                callback_data="admin_users"
+            ),
+            InlineKeyboardButton(
+                "📥 Скачивания",
+                callback_data="admin_downloads"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "⬅️ Главное меню",
+                callback_data="back"
+            )
+        ],
+    ])
+
+
+# =========================================================
+# 🚀 START
+# =========================================================
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    register_user(update, context)
+
     lang = get_lang(context)
 
-    sent = await message.reply_text(
-        TEXTS[lang]["welcome"],
-        parse_mode="HTML",
-        reply_markup=main_keyboard(lang),
+    show_admin = is_admin(update)
+
+    menu_id = context.user_data.get(
+        "menu_message_id"
     )
 
-    context.user_data["menu_message_id"] = sent.message_id
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang = get_lang(context)
-
-    # Если это уже сохранённое главное меню,
-    # просто обновляем его вместо создания нового.
-    menu_id = context.user_data.get("menu_message_id")
-
     if menu_id:
+
         try:
             await context.bot.edit_message_text(
                 chat_id=update.effective_chat.id,
                 message_id=menu_id,
                 text=TEXTS[lang]["welcome"],
                 parse_mode="HTML",
-                reply_markup=main_keyboard(lang),
+                reply_markup=main_keyboard(
+                    lang,
+                    show_admin
+                ),
             )
+
             return
+
         except Exception:
             pass
 
-    await show_main_menu_message(
-        update.message,
-        context
-    )
-
-
-async def show_main_menu(query, context):
-    lang = get_lang(context)
-
-    await query.edit_message_text(
+    sent = await update.message.reply_text(
         TEXTS[lang]["welcome"],
         parse_mode="HTML",
-        reply_markup=main_keyboard(lang),
+        reply_markup=main_keyboard(
+            lang,
+            show_admin
+        ),
     )
 
-    context.user_data["menu_message_id"] = query.message.message_id
+    context.user_data["menu_message_id"] = (
+        sent.message_id
+    )
 
 
+# =========================================================
+# 🔗 LINK HANDLER
+# =========================================================
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    register_user(update, context)
+
     lang = get_lang(context)
     t = TEXTS[lang]
 
     text = update.message.text.strip()
+
     match = URL_PATTERN.search(text)
 
     if not match:
-        await update.message.reply_text(t["bad_link"])
+
+        await update.message.reply_text(
+            t["bad_link"]
+        )
+
         return
 
     url = match.group(0)
 
     context.user_data["url"] = url
 
-    mode = context.user_data.get("download_mode")
+    mode = context.user_data.get(
+        "download_mode"
+    )
 
     if mode == "video":
+
         context.user_data["download_mode"] = None
+
         await download_media_direct(
             update,
             context,
             "video"
         )
+
         return
 
     if mode == "audio":
+
         context.user_data["download_mode"] = None
+
         await download_media_direct(
             update,
             context,
             "audio"
         )
+
         return
 
     await update.message.reply_text(
@@ -297,8 +528,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# =========================================================
+# 🌍 LANGUAGE
+# =========================================================
 async def language_menu(update, context):
     query = update.callback_query
+
     await query.answer()
 
     lang = get_lang(context)
@@ -311,28 +546,51 @@ async def language_menu(update, context):
 
 
 async def change_language(update, context):
+
     query = update.callback_query
+
     await query.answer()
 
-    lang = query.data.replace("lang_", "")
+    lang = query.data.replace(
+        "lang_",
+        ""
+    )
 
     context.user_data["lang"] = lang
 
-    await show_main_menu(query, context)
+    await show_main_menu(
+        query,
+        context
+    )
 
 
+# =========================================================
+# 📊 USER STATISTICS
+# =========================================================
 async def show_stats(update, context):
+
     query = update.callback_query
+
     await query.answer()
 
     lang = get_lang(context)
 
-    video_count = context.user_data.get("video_count", 0)
-    audio_count = context.user_data.get("audio_count", 0)
+    video_count = context.user_data.get(
+        "video_count",
+        0
+    )
+
+    audio_count = context.user_data.get(
+        "audio_count",
+        0
+    )
+
+    total = video_count + audio_count
 
     text = TEXTS[lang]["stats_text"].format(
         video=video_count,
         audio=audio_count,
+        total=total,
     )
 
     await query.edit_message_text(
@@ -342,28 +600,214 @@ async def show_stats(update, context):
     )
 
 
-async def download_media_direct(update, context, media_type):
+# =========================================================
+# 👑 ADMIN COMMAND
+# =========================================================
+async def admin_command(update, context):
+
+    register_user(update, context)
+
+    if not is_admin(update):
+
+        lang = get_lang(context)
+
+        await update.message.reply_text(
+            TEXTS[lang]["admin_denied"]
+        )
+
+        return
+
+    await update.message.reply_text(
+        "👑 <b>TOJSAVER ADMIN PANEL</b>\n\n"
+        "🔐 Доступ разрешён.\n\n"
+        "Выбери раздел:",
+        parse_mode="HTML",
+        reply_markup=admin_keyboard(),
+    )
+
+
+# =========================================================
+# 👑 ADMIN PANEL
+# =========================================================
+async def admin_panel(update, context):
+
+    query = update.callback_query
+
+    if not is_admin(update):
+
+        await query.answer(
+            "⛔ Доступ запрещён.",
+            show_alert=True
+        )
+
+        return
+
+    await query.answer()
+
+    await query.edit_message_text(
+        "👑 <b>TOJSAVER ADMIN PANEL</b>\n\n"
+        "🔐 Доступ разрешён.\n\n"
+        "Выбери раздел:",
+        parse_mode="HTML",
+        reply_markup=admin_keyboard(),
+    )
+
+
+# =========================================================
+# 📊 ADMIN STATISTICS
+# =========================================================
+async def admin_stats(update, context):
+
+    query = update.callback_query
+
+    if not is_admin(update):
+
+        await query.answer(
+            "⛔ Доступ запрещён.",
+            show_alert=True
+        )
+
+        return
+
+    await query.answer()
+
+    users = context.application.bot_data.get(
+        "users",
+        set()
+    )
+
+    video = context.application.bot_data.get(
+        "video_count",
+        0
+    )
+
+    audio = context.application.bot_data.get(
+        "audio_count",
+        0
+    )
+
+    total = video + audio
+
+    await query.edit_message_text(
+        "📊 <b>TOJSAVER — Статистика</b>\n\n"
+        f"👥 Пользователей: <b>{len(users)}</b>\n"
+        f"🎬 Видео: <b>{video}</b>\n"
+        f"🎵 MP3: <b>{audio}</b>\n"
+        f"📥 Всего скачиваний: <b>{total}</b>",
+        parse_mode="HTML",
+        reply_markup=admin_keyboard(),
+    )
+
+
+# =========================================================
+# 👥 ADMIN USERS
+# =========================================================
+async def admin_users(update, context):
+
+    query = update.callback_query
+
+    if not is_admin(update):
+
+        await query.answer(
+            "⛔ Доступ запрещён.",
+            show_alert=True
+        )
+
+        return
+
+    await query.answer()
+
+    users = context.application.bot_data.get(
+        "users",
+        set()
+    )
+
+    await query.edit_message_text(
+        "👥 <b>Пользователи</b>\n\n"
+        f"Всего пользователей: <b>{len(users)}</b>",
+        parse_mode="HTML",
+        reply_markup=admin_keyboard(),
+    )
+
+
+# =========================================================
+# 📥 ADMIN DOWNLOADS
+# =========================================================
+async def admin_downloads(update, context):
+
+    query = update.callback_query
+
+    if not is_admin(update):
+
+        await query.answer(
+            "⛔ Доступ запрещён.",
+            show_alert=True
+        )
+
+        return
+
+    await query.answer()
+
+    video = context.application.bot_data.get(
+        "video_count",
+        0
+    )
+
+    audio = context.application.bot_data.get(
+        "audio_count",
+        0
+    )
+
+    total = video + audio
+
+    await query.edit_message_text(
+        "📥 <b>Скачивания</b>\n\n"
+        f"🎬 Видео: <b>{video}</b>\n"
+        f"🎵 MP3: <b>{audio}</b>\n"
+        f"📦 Всего: <b>{total}</b>",
+        parse_mode="HTML",
+        reply_markup=admin_keyboard(),
+    )
+
+
+# =========================================================
+# 🎬 DIRECT DOWNLOAD
+# =========================================================
+async def download_media_direct(
+    update,
+    context,
+    media_type
+):
+
     lang = get_lang(context)
     t = TEXTS[lang]
 
-    url = context.user_data.get("url")
+    url = context.user_data.get(
+        "url"
+    )
 
     if not url:
+
         await update.message.reply_text(
             t["bad_link"]
         )
+
         return
 
     if media_type == "video":
+
         status = await update.message.reply_text(
             t["processing_video"]
         )
+
     else:
+
         status = await update.message.reply_text(
             t["processing_audio"]
         )
 
     try:
+
         with tempfile.TemporaryDirectory() as temp_dir:
 
             output = os.path.join(
@@ -382,15 +826,28 @@ async def download_media_direct(update, context, media_type):
                     "restrictfilenames": True,
                 }
 
-                with yt_dlp.YoutubeDL(options) as ydl:
+                with yt_dlp.YoutubeDL(
+                    options
+                ) as ydl:
+
                     info = ydl.extract_info(
                         url,
                         download=True
                     )
-                    filename = ydl.prepare_filename(info)
 
-                if not os.path.exists(filename):
-                    files = os.listdir(temp_dir)
+                    filename = (
+                        ydl.prepare_filename(
+                            info
+                        )
+                    )
+
+                if not os.path.exists(
+                    filename
+                ):
+
+                    files = os.listdir(
+                        temp_dir
+                    )
 
                     if not files:
                         raise FileNotFoundError()
@@ -405,14 +862,29 @@ async def download_media_direct(update, context, media_type):
                     parse_mode="HTML"
                 )
 
-                with open(filename, "rb") as video:
+                with open(
+                    filename,
+                    "rb"
+                ) as video:
+
                     await update.message.reply_video(
                         video=video,
                         caption="🎬 TOJSAVER 🇹🇯"
                     )
 
-                context.user_data["video_count"] = (
+                context.user_data[
+                    "video_count"
+                ] = (
                     context.user_data.get(
+                        "video_count",
+                        0
+                    ) + 1
+                )
+
+                context.application.bot_data[
+                    "video_count"
+                ] = (
+                    context.application.bot_data.get(
                         "video_count",
                         0
                     ) + 1
@@ -429,26 +901,42 @@ async def download_media_direct(update, context, media_type):
                     "restrictfilenames": True,
                     "postprocessors": [
                         {
-                            "key": "FFmpegExtractAudio",
-                            "preferredcodec": "mp3",
-                            "preferredquality": "192",
+                            "key":
+                                "FFmpegExtractAudio",
+                            "preferredcodec":
+                                "mp3",
+                            "preferredquality":
+                                "192",
                         }
                     ],
                 }
 
-                with yt_dlp.YoutubeDL(options) as ydl:
+                with yt_dlp.YoutubeDL(
+                    options
+                ) as ydl:
+
                     info = ydl.extract_info(
                         url,
                         download=True
                     )
 
-                    filename = ydl.prepare_filename(info)
                     filename = (
-                        os.path.splitext(filename)[0]
+                        ydl.prepare_filename(
+                            info
+                        )
+                    )
+
+                    filename = (
+                        os.path.splitext(
+                            filename
+                        )[0]
                         + ".mp3"
                     )
 
-                if not os.path.exists(filename):
+                if not os.path.exists(
+                    filename
+                ):
+
                     raise FileNotFoundError()
 
                 await status.edit_text(
@@ -456,21 +944,39 @@ async def download_media_direct(update, context, media_type):
                     parse_mode="HTML"
                 )
 
-                with open(filename, "rb") as audio:
+                with open(
+                    filename,
+                    "rb"
+                ) as audio:
+
                     await update.message.reply_audio(
                         audio=audio,
                         caption="🎵 TOJSAVER 🇹🇯"
                     )
 
-                context.user_data["audio_count"] = (
+                context.user_data[
+                    "audio_count"
+                ] = (
                     context.user_data.get(
                         "audio_count",
                         0
                     ) + 1
                 )
 
+                context.application.bot_data[
+                    "audio_count"
+                ] = (
+                    context.application.bot_data.get(
+                        "audio_count",
+                        0
+                    ) + 1
+                )
+
     except Exception as e:
-        print(f"DOWNLOAD ERROR: {e}")
+
+        print(
+            f"DOWNLOAD ERROR: {e}"
+        )
 
         await status.edit_text(
             t["error"],
@@ -478,31 +984,52 @@ async def download_media_direct(update, context, media_type):
         )
 
 
-async def download_media(update, context):
+# =========================================================
+# 🎬 CALLBACK DOWNLOAD
+# =========================================================
+async def download_media(
+    update,
+    context
+):
+
     query = update.callback_query
+
     await query.answer()
 
     lang = get_lang(context)
     t = TEXTS[lang]
 
-    url = context.user_data.get("url")
+    url = context.user_data.get(
+        "url"
+    )
 
     if not url:
+
         await query.edit_message_text(
             t["bad_link"],
-            reply_markup=back_keyboard(lang),
+            reply_markup=back_keyboard(
+                lang
+            ),
         )
+
         return
 
     media_type = query.data
 
-    await query.edit_message_text(
-        t["processing_video"]
-        if media_type == "video"
-        else t["processing_audio"]
-    )
+    if media_type == "video":
+
+        await query.edit_message_text(
+            t["processing_video"]
+        )
+
+    else:
+
+        await query.edit_message_text(
+            t["processing_audio"]
+        )
 
     try:
+
         with tempfile.TemporaryDirectory() as temp_dir:
 
             output = os.path.join(
@@ -521,15 +1048,28 @@ async def download_media(update, context):
                     "restrictfilenames": True,
                 }
 
-                with yt_dlp.YoutubeDL(options) as ydl:
+                with yt_dlp.YoutubeDL(
+                    options
+                ) as ydl:
+
                     info = ydl.extract_info(
                         url,
                         download=True
                     )
-                    filename = ydl.prepare_filename(info)
 
-                if not os.path.exists(filename):
-                    files = os.listdir(temp_dir)
+                    filename = (
+                        ydl.prepare_filename(
+                            info
+                        )
+                    )
+
+                if not os.path.exists(
+                    filename
+                ):
+
+                    files = os.listdir(
+                        temp_dir
+                    )
 
                     if not files:
                         raise FileNotFoundError()
@@ -544,14 +1084,29 @@ async def download_media(update, context):
                     parse_mode="HTML"
                 )
 
-                with open(filename, "rb") as video:
+                with open(
+                    filename,
+                    "rb"
+                ) as video:
+
                     await query.message.reply_video(
                         video=video,
                         caption="🎬 TOJSAVER 🇹🇯"
                     )
 
-                context.user_data["video_count"] = (
+                context.user_data[
+                    "video_count"
+                ] = (
                     context.user_data.get(
+                        "video_count",
+                        0
+                    ) + 1
+                )
+
+                context.application.bot_data[
+                    "video_count"
+                ] = (
+                    context.application.bot_data.get(
                         "video_count",
                         0
                     ) + 1
@@ -568,26 +1123,42 @@ async def download_media(update, context):
                     "restrictfilenames": True,
                     "postprocessors": [
                         {
-                            "key": "FFmpegExtractAudio",
-                            "preferredcodec": "mp3",
-                            "preferredquality": "192",
+                            "key":
+                                "FFmpegExtractAudio",
+                            "preferredcodec":
+                                "mp3",
+                            "preferredquality":
+                                "192",
                         }
                     ],
                 }
 
-                with yt_dlp.YoutubeDL(options) as ydl:
+                with yt_dlp.YoutubeDL(
+                    options
+                ) as ydl:
+
                     info = ydl.extract_info(
                         url,
                         download=True
                     )
 
-                    filename = ydl.prepare_filename(info)
                     filename = (
-                        os.path.splitext(filename)[0]
+                        ydl.prepare_filename(
+                            info
+                        )
+                    )
+
+                    filename = (
+                        os.path.splitext(
+                            filename
+                        )[0]
                         + ".mp3"
                     )
 
-                if not os.path.exists(filename):
+                if not os.path.exists(
+                    filename
+                ):
+
                     raise FileNotFoundError()
 
                 await query.edit_message_text(
@@ -595,21 +1166,39 @@ async def download_media(update, context):
                     parse_mode="HTML"
                 )
 
-                with open(filename, "rb") as audio:
+                with open(
+                    filename,
+                    "rb"
+                ) as audio:
+
                     await query.message.reply_audio(
                         audio=audio,
                         caption="🎵 TOJSAVER 🇹🇯"
                     )
 
-                context.user_data["audio_count"] = (
+                context.user_data[
+                    "audio_count"
+                ] = (
                     context.user_data.get(
                         "audio_count",
                         0
                     ) + 1
                 )
 
+                context.application.bot_data[
+                    "audio_count"
+                ] = (
+                    context.application.bot_data.get(
+                        "audio_count",
+                        0
+                    ) + 1
+                )
+
     except Exception as e:
-        print(f"DOWNLOAD ERROR: {e}")
+
+        print(
+            f"DOWNLOAD ERROR: {e}"
+        )
 
         await query.edit_message_text(
             t["error"],
@@ -617,77 +1206,211 @@ async def download_media(update, context):
         )
 
 
-async def callback_handler(update, context):
+# =========================================================
+# 🎛 CALLBACK HANDLER
+# =========================================================
+async def callback_handler(
+    update,
+    context
+):
+
     query = update.callback_query
+
     data = query.data
 
+    # -------------------------
+    # LANGUAGE
+    # -------------------------
     if data == "language":
-        await language_menu(update, context)
 
-    elif data.startswith("lang_"):
-        await change_language(update, context)
+        await language_menu(
+            update,
+            context
+        )
 
+    elif data.startswith(
+        "lang_"
+    ):
+
+        await change_language(
+            update,
+            context
+        )
+
+    # -------------------------
+    # USER STATS
+    # -------------------------
     elif data == "stats":
-        await show_stats(update, context)
 
+        await show_stats(
+            update,
+            context
+        )
+
+    # -------------------------
+    # BACK
+    # -------------------------
     elif data == "back":
-        await query.answer()
-        context.user_data["download_mode"] = None
-        await show_main_menu(query, context)
 
+        await query.answer()
+
+        context.user_data[
+            "download_mode"
+        ] = None
+
+        await show_main_menu(
+            query,
+            context
+        )
+
+    # -------------------------
+    # DOWNLOAD VIDEO
+    # -------------------------
     elif data == "download_video":
+
         await query.answer()
 
-        lang = get_lang(context)
-
-        context.user_data["download_mode"] = "video"
-
-        await query.edit_message_text(
-            TEXTS[lang]["send_link_video"],
-            parse_mode="HTML",
-            reply_markup=back_keyboard(lang),
+        lang = get_lang(
+            context
         )
 
+        context.user_data[
+            "download_mode"
+        ] = "video"
+
+        await query.edit_message_text(
+            TEXTS[lang][
+                "send_link_video"
+            ],
+            parse_mode="HTML",
+            reply_markup=back_keyboard(
+                lang
+            ),
+        )
+
+    # -------------------------
+    # DOWNLOAD MP3
+    # -------------------------
     elif data == "download_audio":
+
         await query.answer()
 
-        lang = get_lang(context)
-
-        context.user_data["download_mode"] = "audio"
-
-        await query.edit_message_text(
-            TEXTS[lang]["send_link_audio"],
-            parse_mode="HTML",
-            reply_markup=back_keyboard(lang),
+        lang = get_lang(
+            context
         )
 
-    elif data in ["video", "audio"]:
-        context.user_data["download_mode"] = None
-        await download_media(update, context)
+        context.user_data[
+            "download_mode"
+        ] = "audio"
+
+        await query.edit_message_text(
+            TEXTS[lang][
+                "send_link_audio"
+            ],
+            parse_mode="HTML",
+            reply_markup=back_keyboard(
+                lang
+            ),
+        )
+
+    # -------------------------
+    # FORMAT
+    # -------------------------
+    elif data in [
+        "video",
+        "audio"
+    ]:
+
+        context.user_data[
+            "download_mode"
+        ] = None
+
+        await download_media(
+            update,
+            context
+        )
+
+    # -------------------------
+    # ADMIN PANEL
+    # -------------------------
+    elif data == "admin_panel":
+
+        await admin_panel(
+            update,
+            context
+        )
+
+    elif data == "admin_stats":
+
+        await admin_stats(
+            update,
+            context
+        )
+
+    elif data == "admin_users":
+
+        await admin_users(
+            update,
+            context
+        )
+
+    elif data == "admin_downloads":
+
+        await admin_downloads(
+            update,
+            context
+        )
 
 
+# =========================================================
+# 🏁 MAIN
+# =========================================================
 def main():
-    if not TOKEN:
-        raise RuntimeError("BOT_TOKEN не найден")
 
-    app = Application.builder().token(TOKEN).build()
+    if not TOKEN:
+
+        raise RuntimeError(
+            "BOT_TOKEN не найден"
+        )
+
+    app = (
+        Application
+        .builder()
+        .token(TOKEN)
+        .build()
+    )
 
     app.add_handler(
-        CommandHandler("start", start)
+        CommandHandler(
+            "start",
+            start
+        )
+    )
+
+    app.add_handler(
+        CommandHandler(
+            "admin",
+            admin_command
+        )
     )
 
     app.add_handler(
         MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
+            filters.TEXT
+            & ~filters.COMMAND,
             handle_link
         )
     )
 
     app.add_handler(
-        CallbackQueryHandler(callback_handler)
+        CallbackQueryHandler(
+            callback_handler
+        )
     )
 
-    print("TOJSAVER PRO запущен!")
+    print(
+        "TOJSAVER PRO + ADMIN запущен!"
+    )
 
     app.run_polling()
 
