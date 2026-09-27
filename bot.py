@@ -1,6 +1,11 @@
 import os
 import re
+import sqlite3
+import asyncio
 import tempfile
+import shutil
+import time
+from datetime import datetime
 
 import yt_dlp
 
@@ -9,6 +14,8 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
+
+from telegram.constants import ChatAction
 
 from telegram.ext import (
     Application,
@@ -21,26 +28,44 @@ from telegram.ext import (
 
 
 # =========================================================
+# TOJSAVER V2
+# =========================================================
+# 🎬 Video Downloader
+# 🎵 MP3 Downloader
+# 👑 Admin Panel
+# 📊 Statistics
+# 📢 Broadcast
+# 🗄️ SQLite runtime database
+#
+# Author: JABORZODA FAYZALI
+# =========================================================
+
+
+# =========================================================
 # CONFIG
 # =========================================================
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-# =========================================================
-# ВСТАВЬ СЮДА СВОЙ TELEGRAM USER ID
-# =========================================================
-
+# Твой Telegram ID.
+# Здесь оставляем уже установленный ID.
 ADMIN_ID = 8479464985
 
+DB_FILE = "tojsaver.db"
 
-# =========================================================
-# SUPPORTED URLS
-# =========================================================
+MAX_FILE_SIZE = 49 * 1024 * 1024
+
+SUPPORTED_SITES = (
+    "instagram.com",
+    "youtube.com",
+    "youtu.be",
+    "tiktok.com",
+)
+
 
 URL_PATTERN = re.compile(
     r"https?://(?:www\.)?"
-    r"(?:instagram\.com|youtube\.com|youtu\.be|"
-    r"tiktok\.com)"
+    r"(?:instagram\.com|youtube\.com|youtu\.be|tiktok\.com)"
     r"/\S+",
     re.IGNORECASE,
 )
@@ -54,325 +79,420 @@ TEXTS = {
 
     "ru": {
 
-        "welcome": (
+        "welcome":
             "🎬 <b>TOJSAVER</b>\n\n"
-            "🇷🇺 Видео и музыка из социальных сетей.\n\n"
-            "📥 Отправь ссылку на Instagram, YouTube "
-            "или TikTok."
-        ),
+            "🚀 Универсальный загрузчик видео и музыки.\n\n"
+            "📥 Instagram\n"
+            "📥 YouTube\n"
+            "📥 TikTok\n\n"
+            "🔗 Просто отправь ссылку.",
 
-        "menu": (
+        "menu":
             "🎬 <b>TOJSAVER</b>\n\n"
-            "Выбери действие:"
-        ),
+            "Выбери действие:",
 
-        "choose_format": (
-            "📥 <b>Выбери формат:</b>"
-        ),
+        "video":
+            "🎬 Скачать видео",
 
-        "send_link_video": (
+        "audio":
+            "🎵 Скачать MP3",
+
+        "stats":
+            "📊 Моя статистика",
+
+        "language":
+            "🌐 Язык",
+
+        "admin":
+            "👑 Админ-панель",
+
+        "back":
+            "⬅️ Назад",
+
+        "choose_format":
+            "📥 <b>Выбери формат:</b>",
+
+        "send_link_video":
             "🎬 <b>Скачать видео</b>\n\n"
-            "🔗 Отправь ссылку на Instagram, "
-            "YouTube или TikTok."
-        ),
+            "🔗 Отправь ссылку на Instagram, YouTube или TikTok.",
 
-        "send_link_audio": (
+        "send_link_audio":
             "🎵 <b>Скачать MP3</b>\n\n"
-            "🔗 Отправь ссылку на Instagram, "
-            "YouTube или TikTok."
-        ),
+            "🔗 Отправь ссылку на Instagram, YouTube или TikTok.",
 
-        "video": "🎬 Скачать видео",
-        "audio": "🎵 Скачать MP3",
-        "language": "🌐 Язык",
-        "stats": "📊 Моя статистика",
-        "admin": "👑 Админ-панель",
+        "processing_video":
+            "⏳ <b>Обрабатываю видео...</b>\n\n"
+            "🔎 Получаю информацию...\n"
+            "📥 Загружаю файл...\n\n"
+            "Пожалуйста, подожди.",
 
-        "back": "⬅️ Назад",
+        "processing_audio":
+            "⏳ <b>Обрабатываю музыку...</b>\n\n"
+            "🔎 Получаю информацию...\n"
+            "🎵 Создаю MP3...\n\n"
+            "Пожалуйста, подожди.",
 
-        "processing_video": (
-            "⏳ Скачиваю видео...\n\n"
-            "Пожалуйста, подожди."
-        ),
+        "video_ready":
+            "✅ Видео готово!\n\n"
+            "🎬 TOJSAVER",
 
-        "processing_audio": (
-            "⏳ Скачиваю музыку...\n\n"
-            "Пожалуйста, подожди."
-        ),
+        "audio_ready":
+            "✅ MP3 готов!\n\n"
+            "🎵 TOJSAVER",
 
-        "video_ready": "🎬 Видео готово!",
-        "audio_ready": "🎵 Музыка готова!",
+        "bad_link":
+            "❌ <b>Ссылка не распознана.</b>\n\n"
+            "Поддерживаются:\n"
+            "• Instagram\n"
+            "• YouTube\n"
+            "• TikTok",
 
-        "error": (
-            "❌ Не удалось скачать файл.\n\n"
-            "Попробуй другую ссылку."
-        ),
+        "error":
+            "❌ <b>Не удалось скачать файл.</b>\n\n"
+            "Попробуй другую ссылку.",
 
-        "bad_link": (
-            "🔗 Отправь корректную ссылку на "
-            "Instagram, YouTube или TikTok."
-        ),
+        "too_large":
+            "⚠️ <b>Файл слишком большой для отправки.</b>\n\n"
+            "Попробуй другой файл.",
 
-        "language_title": (
-            "🌐 <b>Выбери язык:</b>"
-        ),
+        "language_title":
+            "🌐 <b>Выбери язык:</b>",
 
-        "language_changed": (
-            "✅ Язык изменён."
-        ),
+        "language_changed":
+            "✅ Язык изменён.",
 
-        "user_stats": (
+        "user_stats":
             "📊 <b>Твоя статистика</b>\n\n"
+            "👤 Скачиваний: {total}\n"
             "🎬 Видео: {videos}\n"
-            "🎵 MP3: {audios}\n"
-            "📥 Всего скачиваний: {total}"
-        ),
+            "🎵 MP3: {audios}\n\n"
+            "🌐 Язык: {language}",
 
-        "admin_title": (
-            "👑 <b>АДМИН-ПАНЕЛЬ TOJSAVER</b>\n\n"
-            "Выбери раздел:"
-        ),
+        "admin_title":
+            "👑 <b>TOJSAVER ADMIN PANEL</b>\n\n"
+            "Выбери раздел:",
 
-        "admin_stats": (
-            "📊 <b>Статистика TOJSAVER</b>\n\n"
-            "👥 Пользователей: {users}\n"
-            "📥 Всего скачиваний: {downloads}\n"
-            "🎬 Видео: {videos}\n"
-            "🎵 MP3: {audios}"
-        ),
+        "admin_stats":
+            "📊 <b>СТАТИСТИКА TOJSAVER</b>\n\n"
+            "👥 Пользователей: <b>{users}</b>\n"
+            "📥 Скачиваний: <b>{downloads}</b>\n"
+            "🎬 Видео: <b>{videos}</b>\n"
+            "🎵 MP3: <b>{audios}</b>\n\n"
+            "🕒 Активных за 24ч: <b>{active}</b>",
 
-        "admin_users": (
-            "👥 <b>Пользователи</b>\n\n"
-            "Всего пользователей: {users}"
-        ),
+        "admin_users":
+            "👥 <b>ПОЛЬЗОВАТЕЛИ</b>\n\n"
+            "Всего пользователей: <b>{users}</b>\n"
+            "Активных за 24 часа: <b>{active}</b>",
 
-        "admin_downloads": (
-            "📥 <b>Скачивания</b>\n\n"
-            "Всего: {downloads}\n"
-            "🎬 Видео: {videos}\n"
-            "🎵 MP3: {audios}"
-        ),
+        "admin_downloads":
+            "📥 <b>СКАЧИВАНИЯ</b>\n\n"
+            "Всего: <b>{downloads}</b>\n"
+            "🎬 Видео: <b>{videos}</b>\n"
+            "🎵 MP3: <b>{audios}</b>",
 
-        "admin_only": (
-            "⛔ Доступ только для администратора."
-        ),
+        "broadcast_start":
+            "📢 <b>Рассылка</b>\n\n"
+            "Отправь сообщение, которое нужно разослать всем пользователям.\n\n"
+            "Для отмены нажми кнопку ниже.",
+
+        "broadcast_cancel":
+            "❌ Рассылка отменена.",
+
+        "broadcast_done":
+            "📢 <b>Рассылка завершена</b>\n\n"
+            "✅ Отправлено: {sent}\n"
+            "❌ Ошибок: {failed}",
+
+        "admin_only":
+            "⛔ Доступ только для администратора.",
+
+        "users_empty":
+            "👥 Пользователей пока нет.",
+
+        "unknown":
+            "🤔 Я не понял сообщение.\n\n"
+            "Отправь ссылку на Instagram, YouTube или TikTok.",
 
     },
 
 
     "tg": {
 
-        "welcome": (
+        "welcome":
             "🎬 <b>TOJSAVER</b>\n\n"
-            "🇹🇯 Видео ва мусиқиро аз шабакаҳои "
-            "иҷтимоӣ зеркашӣ кун.\n\n"
-            "📥 Линкаи Instagram, YouTube ё TikTok-ро "
-            "фирист."
-        ),
+            "🚀 Барномаи зеркашии видео ва мусиқӣ.\n\n"
+            "📥 Instagram\n"
+            "📥 YouTube\n"
+            "📥 TikTok\n\n"
+            "🔗 Танҳо линкаро фирист.",
 
-        "menu": (
+        "menu":
             "🎬 <b>TOJSAVER</b>\n\n"
-            "Амалро интихоб кун:"
-        ),
+            "Амалро интихоб кун:",
 
-        "choose_format": (
-            "📥 <b>Форматро интихоб кун:</b>"
-        ),
+        "video":
+            "🎬 Зеркашии видео",
 
-        "send_link_video": (
+        "audio":
+            "🎵 Зеркашии MP3",
+
+        "stats":
+            "📊 Статистикаи ман",
+
+        "language":
+            "🌐 Забон",
+
+        "admin":
+            "👑 Панели админ",
+
+        "back":
+            "⬅️ Бозгашт",
+
+        "choose_format":
+            "📥 <b>Форматро интихоб кун:</b>",
+
+        "send_link_video":
             "🎬 <b>Зеркашии видео</b>\n\n"
-            "🔗 Линкаи Instagram, YouTube ё TikTok-ро "
-            "фирист."
-        ),
+            "🔗 Линкаи Instagram, YouTube ё TikTok-ро фирист.",
 
-        "send_link_audio": (
+        "send_link_audio":
             "🎵 <b>Зеркашии MP3</b>\n\n"
-            "🔗 Линкаи Instagram, YouTube ё TikTok-ро "
-            "фирист."
-        ),
+            "🔗 Линкаи Instagram, YouTube ё TikTok-ро фирист.",
 
-        "video": "🎬 Зеркашии видео",
-        "audio": "🎵 Зеркашии MP3",
-        "language": "🌐 Забон",
-        "stats": "📊 Статистикаи ман",
-        "admin": "👑 Панели админ",
+        "processing_video":
+            "⏳ <b>Видео коркард шуда истодааст...</b>\n\n"
+            "🔎 Маълумот гирифта мешавад...\n"
+            "📥 Файл зеркашӣ мешавад...\n\n"
+            "Лутфан интизор шав.",
 
-        "back": "⬅️ Бозгашт",
+        "processing_audio":
+            "⏳ <b>Мусиқӣ коркард шуда истодааст...</b>\n\n"
+            "🔎 Маълумот гирифта мешавад...\n"
+            "🎵 MP3 сохта мешавад...\n\n"
+            "Лутфан интизор шав.",
 
-        "processing_video": (
-            "⏳ Видео зеркашӣ шуда истодааст...\n\n"
-            "Лутфан интизор шав."
-        ),
+        "video_ready":
+            "✅ Видео тайёр!\n\n"
+            "🎬 TOJSAVER",
 
-        "processing_audio": (
-            "⏳ Мусиқӣ зеркашӣ шуда истодааст...\n\n"
-            "Лутфан интизор шав."
-        ),
+        "audio_ready":
+            "✅ MP3 тайёр!\n\n"
+            "🎵 TOJSAVER",
 
-        "video_ready": "🎬 Видео тайёр!",
-        "audio_ready": "🎵 Мусиқӣ тайёр!",
+        "bad_link":
+            "❌ <b>Линка шинохта нашуд.</b>\n\n"
+            "Дастгирӣ мешавад:\n"
+            "• Instagram\n"
+            "• YouTube\n"
+            "• TikTok",
 
-        "error": (
-            "❌ Файлро зеркашӣ карда натавонистам.\n\n"
-            "Линкаи дигарро санҷ."
-        ),
+        "error":
+            "❌ <b>Файлро зеркашӣ карда натавонистам.</b>\n\n"
+            "Линкаи дигарро санҷ.",
 
-        "bad_link": (
-            "🔗 Линкаи дурусти Instagram, YouTube ё "
-            "TikTok-ро фирист."
-        ),
+        "too_large":
+            "⚠️ <b>Файл хеле калон аст.</b>\n\n"
+            "Файли дигарро санҷ.",
 
-        "language_title": (
-            "🌐 <b>Забонро интихоб кун:</b>"
-        ),
+        "language_title":
+            "🌐 <b>Забонро интихоб кун:</b>",
 
-        "language_changed": (
-            "✅ Забон иваз шуд."
-        ),
+        "language_changed":
+            "✅ Забон иваз шуд.",
 
-        "user_stats": (
+        "user_stats":
             "📊 <b>Статистикаи ту</b>\n\n"
+            "👤 Ҳамаи зеркашиҳо: {total}\n"
             "🎬 Видео: {videos}\n"
-            "🎵 MP3: {audios}\n"
-            "📥 Ҳамаи зеркашиҳо: {total}"
-        ),
+            "🎵 MP3: {audios}\n\n"
+            "🌐 Забон: {language}",
 
-        "admin_title": (
+        "admin_title":
             "👑 <b>ПАНЕЛИ АДМИНИ TOJSAVER</b>\n\n"
-            "Қисмро интихоб кун:"
-        ),
+            "Қисмро интихоб кун:",
 
-        "admin_stats": (
-            "📊 <b>Статистикаи TOJSAVER</b>\n\n"
-            "👥 Истифодабарандагон: {users}\n"
-            "📥 Ҳамаи зеркашиҳо: {downloads}\n"
-            "🎬 Видео: {videos}\n"
-            "🎵 MP3: {audios}"
-        ),
+        "admin_stats":
+            "📊 <b>СТАТИСТИКАИ TOJSAVER</b>\n\n"
+            "👥 Истифодабарандагон: <b>{users}</b>\n"
+            "📥 Зеркашиҳо: <b>{downloads}</b>\n"
+            "🎬 Видео: <b>{videos}</b>\n"
+            "🎵 MP3: <b>{audios}</b>\n\n"
+            "🕒 Фаъол дар 24 соат: <b>{active}</b>",
 
-        "admin_users": (
-            "👥 <b>Истифодабарандагон</b>\n\n"
-            "Ҳама: {users}"
-        ),
+        "admin_users":
+            "👥 <b>ИСТИФОДАБАРАНДАГОН</b>\n\n"
+            "Ҳама: <b>{users}</b>\n"
+            "Дар 24 соат: <b>{active}</b>",
 
-        "admin_downloads": (
-            "📥 <b>Зеркашиҳо</b>\n\n"
-            "Ҳама: {downloads}\n"
-            "🎬 Видео: {videos}\n"
-            "🎵 MP3: {audios}"
-        ),
+        "admin_downloads":
+            "📥 <b>ЗЕРКАШИҲО</b>\n\n"
+            "Ҳама: <b>{downloads}</b>\n"
+            "🎬 Видео: <b>{videos}</b>\n"
+            "🎵 MP3: <b>{audios}</b>",
 
-        "admin_only": (
-            "⛔ Танҳо барои администратор."
-        ),
+        "broadcast_start":
+            "📢 <b>Рассылка</b>\n\n"
+            "Паёмеро фирист, ки ба ҳамаи истифодабарандагон равон шавад.\n\n"
+            "Барои бекор кардан тугмаро зер кун.",
+
+        "broadcast_cancel":
+            "❌ Рассылка бекор шуд.",
+
+        "broadcast_done":
+            "📢 <b>Рассылка анҷом ёфт</b>\n\n"
+            "✅ Фиристода шуд: {sent}\n"
+            "❌ Хато: {failed}",
+
+        "admin_only":
+            "⛔ Танҳо барои администратор.",
+
+        "users_empty":
+            "👥 Ҳоло истифодабаранда нест.",
+
+        "unknown":
+            "🤔 Ман нафаҳмидам.\n\n"
+            "Линкаи Instagram, YouTube ё TikTok-ро фирист.",
 
     },
 
 
     "en": {
 
-        "welcome": (
+        "welcome":
             "🎬 <b>TOJSAVER</b>\n\n"
-            "🇬🇧 Video and music downloader.\n\n"
-            "📥 Send an Instagram, YouTube or "
-            "TikTok link."
-        ),
+            "🚀 Universal video and music downloader.\n\n"
+            "📥 Instagram\n"
+            "📥 YouTube\n"
+            "📥 TikTok\n\n"
+            "🔗 Just send a link.",
 
-        "menu": (
+        "menu":
             "🎬 <b>TOJSAVER</b>\n\n"
-            "Choose an action:"
-        ),
+            "Choose an action:",
 
-        "choose_format": (
-            "📥 <b>Choose format:</b>"
-        ),
+        "video":
+            "🎬 Download video",
 
-        "send_link_video": (
+        "audio":
+            "🎵 Download MP3",
+
+        "stats":
+            "📊 My statistics",
+
+        "language":
+            "🌐 Language",
+
+        "admin":
+            "👑 Admin panel",
+
+        "back":
+            "⬅️ Back",
+
+        "choose_format":
+            "📥 <b>Choose format:</b>",
+
+        "send_link_video":
             "🎬 <b>Download video</b>\n\n"
-            "🔗 Send an Instagram, YouTube or "
-            "TikTok link."
-        ),
+            "🔗 Send an Instagram, YouTube or TikTok link.",
 
-        "send_link_audio": (
+        "send_link_audio":
             "🎵 <b>Download MP3</b>\n\n"
-            "🔗 Send an Instagram, YouTube or "
-            "TikTok link."
-        ),
+            "🔗 Send an Instagram, YouTube or TikTok link.",
 
-        "video": "🎬 Download video",
-        "audio": "🎵 Download MP3",
-        "language": "🌐 Language",
-        "stats": "📊 My statistics",
-        "admin": "👑 Admin panel",
+        "processing_video":
+            "⏳ <b>Processing video...</b>\n\n"
+            "🔎 Getting information...\n"
+            "📥 Downloading file...\n\n"
+            "Please wait.",
 
-        "back": "⬅️ Back",
+        "processing_audio":
+            "⏳ <b>Processing music...</b>\n\n"
+            "🔎 Getting information...\n"
+            "🎵 Creating MP3...\n\n"
+            "Please wait.",
 
-        "processing_video": (
-            "⏳ Downloading video...\n\n"
-            "Please wait."
-        ),
+        "video_ready":
+            "✅ Video ready!\n\n"
+            "🎬 TOJSAVER",
 
-        "processing_audio": (
-            "⏳ Downloading music...\n\n"
-            "Please wait."
-        ),
+        "audio_ready":
+            "✅ MP3 ready!\n\n"
+            "🎵 TOJSAVER",
 
-        "video_ready": "🎬 Video ready!",
-        "audio_ready": "🎵 Music ready!",
+        "bad_link":
+            "❌ <b>Link not recognized.</b>\n\n"
+            "Supported:\n"
+            "• Instagram\n"
+            "• YouTube\n"
+            "• TikTok",
 
-        "error": (
-            "❌ Failed to download the file.\n\n"
-            "Try another link."
-        ),
+        "error":
+            "❌ <b>Could not download the file.</b>\n\n"
+            "Try another link.",
 
-        "bad_link": (
-            "🔗 Send a valid Instagram, YouTube or "
-            "TikTok link."
-        ),
+        "too_large":
+            "⚠️ <b>File is too large.</b>\n\n"
+            "Try another file.",
 
-        "language_title": (
-            "🌐 <b>Choose language:</b>"
-        ),
+        "language_title":
+            "🌐 <b>Choose language:</b>",
 
-        "language_changed": (
-            "✅ Language changed."
-        ),
+        "language_changed":
+            "✅ Language changed.",
 
-        "user_stats": (
+        "user_stats":
             "📊 <b>Your statistics</b>\n\n"
+            "👤 Downloads: {total}\n"
             "🎬 Videos: {videos}\n"
-            "🎵 MP3: {audios}\n"
-            "📥 Total downloads: {total}"
-        ),
+            "🎵 MP3: {audios}\n\n"
+            "🌐 Language: {language}",
 
-        "admin_title": (
+        "admin_title":
             "👑 <b>TOJSAVER ADMIN PANEL</b>\n\n"
-            "Choose a section:"
-        ),
+            "Choose a section:",
 
-        "admin_stats": (
-            "📊 <b>TOJSAVER Statistics</b>\n\n"
-            "👥 Users: {users}\n"
-            "📥 Total downloads: {downloads}\n"
-            "🎬 Videos: {videos}\n"
-            "🎵 MP3: {audios}"
-        ),
+        "admin_stats":
+            "📊 <b>TOJSAVER STATISTICS</b>\n\n"
+            "👥 Users: <b>{users}</b>\n"
+            "📥 Downloads: <b>{downloads}</b>\n"
+            "🎬 Videos: <b>{videos}</b>\n"
+            "🎵 MP3: <b>{audios}</b>\n\n"
+            "🕒 Active 24h: <b>{active}</b>",
 
-        "admin_users": (
-            "👥 <b>Users</b>\n\n"
-            "Total users: {users}"
-        ),
+        "admin_users":
+            "👥 <b>USERS</b>\n\n"
+            "Total: <b>{users}</b>\n"
+            "Active 24h: <b>{active}</b>",
 
-        "admin_downloads": (
-            "📥 <b>Downloads</b>\n\n"
-            "Total: {downloads}\n"
-            "🎬 Videos: {videos}\n"
-            "🎵 MP3: {audios}"
-        ),
+        "admin_downloads":
+            "📥 <b>DOWNLOADS</b>\n\n"
+            "Total: <b>{downloads}</b>\n"
+            "🎬 Videos: <b>{videos}</b>\n"
+            "🎵 MP3: <b>{audios}</b>",
 
-        "admin_only": (
-            "⛔ Admin access only."
-        ),
+        "broadcast_start":
+            "📢 <b>Broadcast</b>\n\n"
+            "Send the message that should be sent to all users.\n\n"
+            "Press cancel below to stop.",
+
+        "broadcast_cancel":
+            "❌ Broadcast cancelled.",
+
+        "broadcast_done":
+            "📢 <b>Broadcast completed</b>\n\n"
+            "✅ Sent: {sent}\n"
+            "❌ Failed: {failed}",
+
+        "admin_only":
+            "⛔ Admin access only.",
+
+        "users_empty":
+            "👥 No users yet.",
+
+        "unknown":
+            "🤔 I didn't understand.\n\n"
+            "Send an Instagram, YouTube or TikTok link.",
 
     }
 
@@ -380,110 +500,400 @@ TEXTS = {
 
 
 # =========================================================
-# LANGUAGE
+# DATABASE
 # =========================================================
 
-def get_lang(context):
+def db_connection():
 
-    return context.user_data.get(
-        "lang",
-        "ru"
+    conn = sqlite3.connect(
+        DB_FILE,
+        check_same_thread=False
     )
 
+    conn.row_factory = sqlite3.Row
 
-# =========================================================
-# ADMIN CHECK
-# =========================================================
-
-def is_admin(update):
-
-    user = update.effective_user
-
-    if not user:
-        return False
-
-    return user.id == ADMIN_ID
+    return conn
 
 
-# =========================================================
-# REGISTER USER
-# =========================================================
+def init_database():
 
-def register_user(update, context):
+    conn = db_connection()
 
-    user = update.effective_user
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            first_name TEXT,
+            language TEXT DEFAULT 'ru',
+            downloads INTEGER DEFAULT 0,
+            videos INTEGER DEFAULT 0,
+            audios INTEGER DEFAULT 0,
+            created_at INTEGER,
+            last_seen INTEGER,
+            blocked INTEGER DEFAULT 0
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS downloads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            media_type TEXT,
+            url TEXT,
+            created_at INTEGER,
+            success INTEGER DEFAULT 1
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_downloads_user
+        ON downloads(user_id)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_downloads_created
+        ON downloads(created_at)
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+def db_register_user(user):
 
     if not user:
         return
 
-    users = context.application.bot_data.setdefault(
-        "users",
-        set()
-    )
+    now = int(time.time())
 
-    users.add(user.id)
+    conn = db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO users (
+            user_id,
+            username,
+            first_name,
+            language,
+            downloads,
+            videos,
+            audios,
+            created_at,
+            last_seen,
+            blocked
+        )
+        VALUES (?, ?, ?, 'ru', 0, 0, 0, ?, ?, 0)
+
+        ON CONFLICT(user_id)
+        DO UPDATE SET
+            username = excluded.username,
+            first_name = excluded.first_name,
+            last_seen = excluded.last_seen
+    """, (
+        user.id,
+        user.username or "",
+        user.first_name or "",
+        now,
+        now
+    ))
+
+    conn.commit()
+    conn.close()
 
 
-# =========================================================
-# GLOBAL STATS
-# =========================================================
+def db_set_language(user_id, language):
 
-def get_global_stats(context):
+    conn = db_connection()
 
-    data = context.application.bot_data
+    conn.execute("""
+        UPDATE users
+        SET language = ?
+        WHERE user_id = ?
+    """, (
+        language,
+        user_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def db_get_language(user_id):
+
+    conn = db_connection()
+
+    row = conn.execute("""
+        SELECT language
+        FROM users
+        WHERE user_id = ?
+    """, (
+        user_id,
+    )).fetchone()
+
+    conn.close()
+
+    if row and row["language"] in TEXTS:
+        return row["language"]
+
+    return "ru"
+
+
+def db_add_download(
+    user_id,
+    media_type,
+    url,
+    success=True
+):
+
+    now = int(time.time())
+
+    conn = db_connection()
+
+    conn.execute("""
+        INSERT INTO downloads (
+            user_id,
+            media_type,
+            url,
+            created_at,
+            success
+        )
+        VALUES (?, ?, ?, ?, ?)
+    """, (
+        user_id,
+        media_type,
+        url,
+        now,
+        1 if success else 0
+    ))
+
+    if success:
+
+        conn.execute("""
+            UPDATE users
+            SET
+                downloads = downloads + 1,
+                videos = videos + ?,
+                audios = audios + ?
+            WHERE user_id = ?
+        """, (
+            1 if media_type == "video" else 0,
+            1 if media_type == "audio" else 0,
+            user_id
+        ))
+
+    conn.commit()
+    conn.close()
+
+
+def db_user_stats(user_id):
+
+    conn = db_connection()
+
+    row = conn.execute("""
+        SELECT
+            downloads,
+            videos,
+            audios,
+            language
+        FROM users
+        WHERE user_id = ?
+    """, (
+        user_id,
+    )).fetchone()
+
+    conn.close()
+
+    if not row:
+        return {
+            "downloads": 0,
+            "videos": 0,
+            "audios": 0,
+            "language": "ru"
+        }
+
+    return dict(row)
+
+
+def db_global_stats():
+
+    conn = db_connection()
+
+    users = conn.execute("""
+        SELECT COUNT(*) AS c
+        FROM users
+    """).fetchone()["c"]
+
+    downloads = conn.execute("""
+        SELECT COUNT(*) AS c
+        FROM downloads
+        WHERE success = 1
+    """).fetchone()["c"]
+
+    videos = conn.execute("""
+        SELECT COUNT(*) AS c
+        FROM downloads
+        WHERE success = 1
+        AND media_type = 'video'
+    """).fetchone()["c"]
+
+    audios = conn.execute("""
+        SELECT COUNT(*) AS c
+        FROM downloads
+        WHERE success = 1
+        AND media_type = 'audio'
+    """).fetchone()["c"]
+
+    day_ago = int(time.time()) - 86400
+
+    active = conn.execute("""
+        SELECT COUNT(*) AS c
+        FROM users
+        WHERE last_seen >= ?
+    """, (
+        day_ago,
+    )).fetchone()["c"]
+
+    conn.close()
 
     return {
-        "users": len(
-            data.get("users", set())
-        ),
-
-        "downloads": data.get(
-            "downloads",
-            0
-        ),
-
-        "videos": data.get(
-            "videos",
-            0
-        ),
-
-        "audios": data.get(
-            "audios",
-            0
-        ),
+        "users": users,
+        "downloads": downloads,
+        "videos": videos,
+        "audios": audios,
+        "active": active
     }
 
 
-def add_download(context, media_type):
+def db_get_users():
 
-    data = context.application.bot_data
+    conn = db_connection()
 
-    data["downloads"] = (
-        data.get("downloads", 0) + 1
+    rows = conn.execute("""
+        SELECT
+            user_id,
+            username,
+            first_name,
+            downloads,
+            videos,
+            audios,
+            last_seen,
+            blocked
+        FROM users
+        ORDER BY last_seen DESC
+    """).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+def db_mark_blocked(user_id):
+
+    conn = db_connection()
+
+    conn.execute("""
+        UPDATE users
+        SET blocked = 1
+        WHERE user_id = ?
+    """, (
+        user_id,
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+# =========================================================
+# HELPERS
+# =========================================================
+
+def get_user(update):
+
+    return update.effective_user
+
+
+def is_admin(update):
+
+    user = get_user(update)
+
+    return bool(
+        user and user.id == ADMIN_ID
     )
 
-    if media_type == "video":
 
-        data["videos"] = (
-            data.get("videos", 0) + 1
+def get_lang(update, context):
+
+    user = get_user(update)
+
+    if not user:
+        return "ru"
+
+    if "lang" in context.user_data:
+        return context.user_data["lang"]
+
+    lang = db_get_language(user.id)
+
+    context.user_data["lang"] = lang
+
+    return lang
+
+
+def register_user(update, context):
+
+    user = get_user(update)
+
+    if not user:
+        return
+
+    db_register_user(user)
+
+    if "lang" not in context.user_data:
+        context.user_data["lang"] = db_get_language(
+            user.id
         )
 
-    elif media_type == "audio":
 
-        data["audios"] = (
-            data.get("audios", 0) + 1
-        )
+def extract_url(text):
+
+    if not text:
+        return None
+
+    match = URL_PATTERN.search(text)
+
+    if not match:
+        return None
+
+    return match.group(0).rstrip(
+        ".,!?)]}>\"'"
+    )
+
+
+def human_language(lang):
+
+    return {
+        "ru": "🇷🇺 Русский",
+        "tg": "🇹🇯 Тоҷикӣ",
+        "en": "🇬🇧 English"
+    }.get(
+        lang,
+        "🇷🇺 Русский"
+    )
 
 
 # =========================================================
-# MAIN KEYBOARD
+# KEYBOARDS
 # =========================================================
 
-def main_keyboard(lang, admin=False):
+def main_keyboard(
+    lang,
+    admin=False
+):
 
     t = TEXTS[lang]
 
-    keyboard = [
+    rows = [
 
         [
             InlineKeyboardButton(
@@ -511,29 +921,21 @@ def main_keyboard(lang, admin=False):
                 t["language"],
                 callback_data="language"
             )
-        ],
+        ]
 
     ]
 
     if admin:
 
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    t["admin"],
-                    callback_data="admin_panel"
-                )
-            ]
-        )
+        rows.append([
+            InlineKeyboardButton(
+                t["admin"],
+                callback_data="admin_panel"
+            )
+        ])
 
-    return InlineKeyboardMarkup(
-        keyboard
-    )
+    return InlineKeyboardMarkup(rows)
 
-
-# =========================================================
-# BACK BUTTON
-# =========================================================
 
 def back_keyboard(lang):
 
@@ -548,10 +950,6 @@ def back_keyboard(lang):
 
     ])
 
-
-# =========================================================
-# LANGUAGE KEYBOARD
-# =========================================================
 
 def language_keyboard(lang):
 
@@ -583,14 +981,10 @@ def language_keyboard(lang):
                 TEXTS[lang]["back"],
                 callback_data="back_main"
             )
-        ],
+        ]
 
     ])
 
-
-# =========================================================
-# ADMIN KEYBOARD
-# =========================================================
 
 def admin_keyboard(lang):
 
@@ -619,26 +1013,371 @@ def admin_keyboard(lang):
 
         [
             InlineKeyboardButton(
+                "📢 Рассылка",
+                callback_data="admin_broadcast"
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                "🔄 Обновить",
+                callback_data="admin_refresh"
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
                 "⬅️ Главное меню",
                 callback_data="back_main"
             )
+        ]
+
+    ])
+
+
+def format_keyboard(lang):
+
+    t = TEXTS[lang]
+
+    return InlineKeyboardMarkup([
+
+        [
+            InlineKeyboardButton(
+                t["video"],
+                callback_data="download_video"
+            )
         ],
+
+        [
+            InlineKeyboardButton(
+                t["audio"],
+                callback_data="download_audio"
+            )
+        ],
+
+        [
+            InlineKeyboardButton(
+                t["back"],
+                callback_data="back_main"
+            )
+        ]
+
+    ])
+
+
+def cancel_broadcast_keyboard(lang):
+
+    return InlineKeyboardMarkup([
+
+        [
+            InlineKeyboardButton(
+                TEXTS[lang]["back"],
+                callback_data="cancel_broadcast"
+            )
+        ]
 
     ])
 
 
 # =========================================================
-# START
+# DOWNLOAD ENGINE
 # =========================================================
 
-async def start(update, context):
+def yt_download_sync(
+    url,
+    media_type,
+    temp_dir
+):
+
+    output = os.path.join(
+        temp_dir,
+        "%(title).80s.%(ext)s"
+    )
+
+    if media_type == "video":
+
+        options = {
+
+            "outtmpl": output,
+
+            "format":
+                "best[ext=mp4]/"
+                "best",
+
+            "noplaylist": True,
+
+            "quiet": True,
+
+            "no_warnings": True,
+
+            "restrictfilenames": True,
+
+        }
+
+    else:
+
+        options = {
+
+            "outtmpl": output,
+
+            "format":
+                "bestaudio/best",
+
+            "noplaylist": True,
+
+            "quiet": True,
+
+            "no_warnings": True,
+
+            "restrictfilenames": True,
+
+            "postprocessors": [
+
+                {
+                    "key":
+                        "FFmpegExtractAudio",
+
+                    "preferredcodec":
+                        "mp3",
+
+                    "preferredquality":
+                        "192"
+                }
+
+            ]
+
+        }
+
+    with yt_dlp.YoutubeDL(
+        options
+    ) as ydl:
+
+        info = ydl.extract_info(
+            url,
+            download=True
+        )
+
+        filename = ydl.prepare_filename(
+            info
+        )
+
+    if media_type == "audio":
+
+        filename = (
+            os.path.splitext(filename)[0]
+            + ".mp3"
+        )
+
+    if not os.path.exists(filename):
+
+        files = [
+            os.path.join(
+                temp_dir,
+                f
+            )
+            for f in os.listdir(
+                temp_dir
+            )
+        ]
+
+        files = [
+            f for f in files
+            if os.path.isfile(f)
+        ]
+
+        if not files:
+            raise FileNotFoundError(
+                "Downloaded file not found"
+            )
+
+        if media_type == "audio":
+
+            mp3_files = [
+                f for f in files
+                if f.lower().endswith(".mp3")
+            ]
+
+            if mp3_files:
+                filename = mp3_files[0]
+
+        if not os.path.exists(filename):
+            filename = files[0]
+
+    return filename
+
+
+async def download_media(
+    update,
+    context,
+    url,
+    media_type
+):
+
+    lang = get_lang(
+        update,
+        context
+    )
+
+    chat = update.effective_chat
+
+    if media_type == "video":
+
+        processing_text = TEXTS[lang][
+            "processing_video"
+        ]
+
+    else:
+
+        processing_text = TEXTS[lang][
+            "processing_audio"
+        ]
+
+    status = await chat.send_message(
+        processing_text,
+        parse_mode="HTML"
+    )
+
+    temp_dir = tempfile.mkdtemp(
+        prefix="tojsaver_"
+    )
+
+    try:
+
+        await chat.send_chat_action(
+            ChatAction.UPLOAD_VIDEO
+            if media_type == "video"
+            else ChatAction.UPLOAD_AUDIO
+        )
+
+        filename = await asyncio.to_thread(
+            yt_download_sync,
+            url,
+            media_type,
+            temp_dir
+        )
+
+        if not os.path.exists(filename):
+
+            raise FileNotFoundError()
+
+        file_size = os.path.getsize(
+            filename
+        )
+
+        if file_size > MAX_FILE_SIZE:
+
+            await status.edit_text(
+                TEXTS[lang]["too_large"],
+                parse_mode="HTML"
+            )
+
+            db_add_download(
+                update.effective_user.id,
+                media_type,
+                url,
+                False
+            )
+
+            return
+
+        if media_type == "video":
+
+            await status.edit_text(
+                TEXTS[lang]["video_ready"],
+                parse_mode="HTML"
+            )
+
+            with open(
+                filename,
+                "rb"
+            ) as media:
+
+                await chat.send_video(
+                    video=media,
+                    caption="🎬 <b>TOJSAVER</b>",
+                    parse_mode="HTML"
+                )
+
+        else:
+
+            await status.edit_text(
+                TEXTS[lang]["audio_ready"],
+                parse_mode="HTML"
+            )
+
+            with open(
+                filename,
+                "rb"
+            ) as media:
+
+                await chat.send_audio(
+                    audio=media,
+                    caption="🎵 <b>TOJSAVER</b>",
+                    parse_mode="HTML"
+                )
+
+        db_add_download(
+            update.effective_user.id,
+            media_type,
+            url,
+            True
+        )
+
+    except Exception as error:
+
+        print(
+            "DOWNLOAD ERROR:",
+            repr(error)
+        )
+
+        try:
+
+            await status.edit_text(
+                TEXTS[lang]["error"],
+                parse_mode="HTML"
+            )
+
+        except Exception:
+            pass
+
+        try:
+
+            db_add_download(
+                update.effective_user.id,
+                media_type,
+                url,
+                False
+            )
+
+        except Exception:
+            pass
+
+    finally:
+
+        shutil.rmtree(
+            temp_dir,
+            ignore_errors=True
+        )
+
+
+# =========================================================
+# /START
+# =========================================================
+
+async def start(
+    update,
+    context
+):
 
     register_user(
         update,
         context
     )
 
-    lang = get_lang(context)
+    lang = get_lang(
+        update,
+        context
+    )
 
     text = TEXTS[lang]["welcome"]
 
@@ -649,21 +1388,20 @@ async def start(update, context):
 
     chat_id = update.effective_chat.id
 
-    # Удаляем сообщение /start,
-    # чтобы оно не засоряло чат
     try:
 
-        await update.message.delete()
+        if update.message:
+
+            await update.message.delete()
 
     except Exception:
         pass
 
-    # Проверяем, есть ли уже главное меню
-    menu_message_id = context.user_data.get(
+    old_message_id = context.user_data.get(
         "menu_message_id"
     )
 
-    if menu_message_id:
+    if old_message_id:
 
         try:
 
@@ -671,7 +1409,7 @@ async def start(update, context):
 
                 chat_id=chat_id,
 
-                message_id=menu_message_id,
+                message_id=old_message_id,
 
                 text=text,
 
@@ -684,14 +1422,8 @@ async def start(update, context):
             return
 
         except Exception:
+            pass
 
-            context.user_data.pop(
-                "menu_message_id",
-                None
-            )
-
-    # Если старого меню нет —
-    # создаём новое
     message = await context.bot.send_message(
 
         chat_id=chat_id,
@@ -710,17 +1442,23 @@ async def start(update, context):
 
 
 # =========================================================
-# ADMIN COMMAND
+# /ADMIN
 # =========================================================
 
-async def admin_command(update, context):
+async def admin_command(
+    update,
+    context
+):
 
     register_user(
         update,
         context
     )
 
-    lang = get_lang(context)
+    lang = get_lang(
+        update,
+        context
+    )
 
     if not is_admin(update):
 
@@ -730,7 +1468,12 @@ async def admin_command(update, context):
 
         return
 
-    await update.message.reply_text(
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+
+    await update.effective_chat.send_message(
 
         TEXTS[lang]["admin_title"],
 
@@ -744,359 +1487,104 @@ async def admin_command(update, context):
 
 
 # =========================================================
-# HANDLE LINK
+# HANDLE TEXT
 # =========================================================
 
-async def handle_link(update, context):
+async def handle_text(
+    update,
+    context
+):
 
     register_user(
         update,
         context
     )
 
-    lang = get_lang(context)
+    text = (
+        update.message.text or ""
+    ).strip()
 
-    text = update.message.text.strip()
+    lang = get_lang(
+        update,
+        context
+    )
 
-    match = URL_PATTERN.search(text)
+    # -----------------------------------------------------
+    # ADMIN BROADCAST MODE
+    # -----------------------------------------------------
 
-    if not match:
+    if (
+        is_admin(update)
+        and context.user_data.get(
+            "broadcast_mode"
+        )
+    ):
 
-        await update.message.reply_text(
-            TEXTS[lang]["bad_link"]
+        await perform_broadcast(
+            update,
+            context,
+            update.message
         )
 
         return
 
-    url = match.group(0)
+    # -----------------------------------------------------
+    # URL
+    # -----------------------------------------------------
 
-    context.user_data["url"] = url
+    url = extract_url(text)
+
+    if not url:
+
+        await update.message.reply_text(
+            TEXTS[lang]["unknown"],
+            parse_mode="HTML"
+        )
+
+        return
+
+    context.user_data[
+        "url"
+    ] = url
 
     mode = context.user_data.get(
         "download_mode"
     )
 
-    # Если пользователь заранее выбрал видео
-    if mode == "video":
+    if mode in (
+        "video",
+        "audio"
+    ):
 
         context.user_data.pop(
             "download_mode",
             None
         )
 
-        await download_video(
+        await download_media(
             update,
             context,
-            url
+            url,
+            mode
         )
 
         return
 
-    # Если пользователь заранее выбрал MP3
-    if mode == "audio":
-
-        context.user_data.pop(
-            "download_mode",
-            None
-        )
-
-        await download_audio(
-            update,
-            context,
-            url
-        )
-
-        return
-
-    # Если просто отправил ссылку
     await update.message.reply_text(
 
         TEXTS[lang]["choose_format"],
 
         parse_mode="HTML",
 
-        reply_markup=InlineKeyboardMarkup([
-
-            [
-
-                InlineKeyboardButton(
-                    TEXTS[lang]["video"],
-                    callback_data="download_video"
-                )
-
-            ],
-
-            [
-
-                InlineKeyboardButton(
-                    TEXTS[lang]["audio"],
-                    callback_data="download_audio"
-                )
-
-            ],
-
-            [
-
-                InlineKeyboardButton(
-                    TEXTS[lang]["back"],
-                    callback_data="back_main"
-                )
-
-            ],
-
-        ])
-
-    )
-
-
-# =========================================================
-# DOWNLOAD VIDEO
-# =========================================================
-
-async def download_video(
-    update,
-    context,
-    url
-):
-
-    lang = get_lang(context)
-
-    status = await update.effective_chat.send_message(
-        TEXTS[lang]["processing_video"]
-    )
-
-    try:
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-
-            output = os.path.join(
-                temp_dir,
-                "%(title).80s.%(ext)s"
-            )
-
-            options = {
-
-                "outtmpl": output,
-
-                "format": (
-                    "best[ext=mp4]/"
-                    "best"
-                ),
-
-                "noplaylist": True,
-
-                "quiet": True,
-
-                "no_warnings": True,
-
-                "restrictfilenames": True,
-
-            }
-
-            with yt_dlp.YoutubeDL(
-                options
-            ) as ydl:
-
-                info = ydl.extract_info(
-                    url,
-                    download=True
-                )
-
-                filename = ydl.prepare_filename(
-                    info
-                )
-
-            if not os.path.exists(filename):
-
-                files = os.listdir(
-                    temp_dir
-                )
-
-                if not files:
-                    raise FileNotFoundError()
-
-                filename = os.path.join(
-                    temp_dir,
-                    files[0]
-                )
-
-            await status.edit_text(
-                TEXTS[lang]["video_ready"]
-            )
-
-            with open(
-                filename,
-                "rb"
-            ) as video:
-
-                await update.effective_chat.send_video(
-
-                    video=video,
-
-                    caption="🎬 TOJSAVER"
-
-                )
-
-            # USER STATS
-            context.user_data["videos"] = (
-                context.user_data.get(
-                    "videos",
-                    0
-                ) + 1
-            )
-
-            # GLOBAL STATS
-            add_download(
-                context,
-                "video"
-            )
-
-    except Exception as error:
-
-        print(
-            "VIDEO ERROR:",
-            error
+        reply_markup=format_keyboard(
+            lang
         )
 
-        try:
-
-            await status.edit_text(
-                TEXTS[lang]["error"]
-            )
-
-        except Exception:
-            pass
-
-
-# =========================================================
-# DOWNLOAD AUDIO
-# =========================================================
-
-async def download_audio(
-    update,
-    context,
-    url
-):
-
-    lang = get_lang(context)
-
-    status = await update.effective_chat.send_message(
-        TEXTS[lang]["processing_audio"]
     )
 
-    try:
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-
-            output = os.path.join(
-                temp_dir,
-                "%(title).80s.%(ext)s"
-            )
-
-            options = {
-
-                "outtmpl": output,
-
-                "format": "bestaudio/best",
-
-                "noplaylist": True,
-
-                "quiet": True,
-
-                "no_warnings": True,
-
-                "restrictfilenames": True,
-
-                "postprocessors": [
-
-                    {
-
-                        "key": "FFmpegExtractAudio",
-
-                        "preferredcodec": "mp3",
-
-                        "preferredquality": "192",
-
-                    }
-
-                ],
-
-            }
-
-            with yt_dlp.YoutubeDL(
-                options
-            ) as ydl:
-
-                info = ydl.extract_info(
-                    url,
-                    download=True
-                )
-
-                filename = ydl.prepare_filename(
-                    info
-                )
-
-                filename = (
-                    os.path.splitext(
-                        filename
-                    )[0]
-                    + ".mp3"
-                )
-
-            if not os.path.exists(filename):
-
-                raise FileNotFoundError()
-
-            await status.edit_text(
-                TEXTS[lang]["audio_ready"]
-            )
-
-            with open(
-                filename,
-                "rb"
-            ) as audio:
-
-                await update.effective_chat.send_audio(
-
-                    audio=audio,
-
-                    caption="🎵 TOJSAVER"
-
-                )
-
-            # USER STATS
-            context.user_data["audios"] = (
-                context.user_data.get(
-                    "audios",
-                    0
-                ) + 1
-            )
-
-            # GLOBAL STATS
-            add_download(
-                context,
-                "audio"
-            )
-
-    except Exception as error:
-
-        print(
-            "AUDIO ERROR:",
-            error
-        )
-
-        try:
-
-            await status.edit_text(
-                TEXTS[lang]["error"]
-            )
-
-        except Exception:
-            pass
-
 
 # =========================================================
-# USER STATISTICS
+# USER STATS
 # =========================================================
 
 async def show_user_stats(
@@ -1104,29 +1592,30 @@ async def show_user_stats(
     context
 ):
 
-    lang = get_lang(context)
+    user_id = query.from_user.id
 
-    videos = context.user_data.get(
-        "videos",
-        0
+    lang = get_lang(
+        None,
+        context
     )
 
-    audios = context.user_data.get(
-        "audios",
-        0
+    stats = db_user_stats(
+        user_id
     )
-
-    total = videos + audios
 
     await query.edit_message_text(
 
         TEXTS[lang]["user_stats"].format(
 
-            videos=videos,
+            total=stats["downloads"],
 
-            audios=audios,
+            videos=stats["videos"],
 
-            total=total
+            audios=stats["audios"],
+
+            language=human_language(
+                stats["language"]
+            )
 
         ),
 
@@ -1140,6 +1629,24 @@ async def show_user_stats(
 
 
 # =========================================================
+# ADMIN CHECK
+# =========================================================
+
+async def admin_guard(query):
+
+    if query.from_user.id != ADMIN_ID:
+
+        await query.answer(
+            "⛔ Access denied.",
+            show_alert=True
+        )
+
+        return False
+
+    return True
+
+
+# =========================================================
 # ADMIN PANEL
 # =========================================================
 
@@ -1148,16 +1655,13 @@ async def show_admin_panel(
     context
 ):
 
-    if query.from_user.id != ADMIN_ID:
-
-        await query.answer(
-            "⛔ Access denied",
-            show_alert=True
-        )
-
+    if not await admin_guard(query):
         return
 
-    lang = get_lang(context)
+    lang = get_lang(
+        None,
+        context
+    )
 
     await query.edit_message_text(
 
@@ -1181,20 +1685,15 @@ async def show_admin_stats(
     context
 ):
 
-    if query.from_user.id != ADMIN_ID:
-
-        await query.answer(
-            "⛔ Access denied",
-            show_alert=True
-        )
-
+    if not await admin_guard(query):
         return
 
-    lang = get_lang(context)
-
-    stats = get_global_stats(
+    lang = get_lang(
+        None,
         context
     )
+
+    stats = db_global_stats()
 
     await query.edit_message_text(
 
@@ -1206,7 +1705,9 @@ async def show_admin_stats(
 
             videos=stats["videos"],
 
-            audios=stats["audios"]
+            audios=stats["audios"],
+
+            active=stats["active"]
 
         ),
 
@@ -1228,26 +1729,23 @@ async def show_admin_users(
     context
 ):
 
-    if query.from_user.id != ADMIN_ID:
-
-        await query.answer(
-            "⛔ Access denied",
-            show_alert=True
-        )
-
+    if not await admin_guard(query):
         return
 
-    lang = get_lang(context)
-
-    stats = get_global_stats(
+    lang = get_lang(
+        None,
         context
     )
+
+    stats = db_global_stats()
 
     await query.edit_message_text(
 
         TEXTS[lang]["admin_users"].format(
 
-            users=stats["users"]
+            users=stats["users"],
+
+            active=stats["active"]
 
         ),
 
@@ -1269,20 +1767,15 @@ async def show_admin_downloads(
     context
 ):
 
-    if query.from_user.id != ADMIN_ID:
-
-        await query.answer(
-            "⛔ Access denied",
-            show_alert=True
-        )
-
+    if not await admin_guard(query):
         return
 
-    lang = get_lang(context)
-
-    stats = get_global_stats(
+    lang = get_lang(
+        None,
         context
     )
+
+    stats = db_global_stats()
 
     await query.edit_message_text(
 
@@ -1293,6 +1786,214 @@ async def show_admin_downloads(
             videos=stats["videos"],
 
             audios=stats["audios"]
+
+        ),
+
+        parse_mode="HTML",
+
+        reply_markup=admin_keyboard(
+            lang
+        )
+
+    )
+
+
+# =========================================================
+# ADMIN USER LIST
+# =========================================================
+
+async def show_users_list(
+    query,
+    context
+):
+
+    if not await admin_guard(query):
+        return
+
+    lang = get_lang(
+        None,
+        context
+    )
+
+    users = db_get_users()
+
+    if not users:
+
+        await query.edit_message_text(
+
+            TEXTS[lang]["users_empty"],
+
+            reply_markup=admin_keyboard(
+                lang
+            )
+
+        )
+
+        return
+
+    # Показываем последних пользователей.
+    # Это защищает Telegram-сообщение от слишком большого размера.
+
+    users = users[:20]
+
+    lines = [
+        "👥 <b>Последние пользователи</b>",
+        ""
+    ]
+
+    for index, user in enumerate(
+        users,
+        start=1
+    ):
+
+        username = user["username"]
+
+        if username:
+
+            name = (
+                "@"
+                + username
+            )
+
+        else:
+
+            name = (
+                user["first_name"]
+                or "Без имени"
+            )
+
+        lines.append(
+            f"{index}. {name} — "
+            f"{user['downloads']} 📥"
+        )
+
+    await query.edit_message_text(
+
+        "\n".join(lines),
+
+        parse_mode="HTML",
+
+        reply_markup=admin_keyboard(
+            lang
+        )
+
+    )
+
+
+# =========================================================
+# BROADCAST
+# =========================================================
+
+async def start_broadcast(
+    query,
+    context
+):
+
+    if not await admin_guard(query):
+        return
+
+    lang = get_lang(
+        None,
+        context
+    )
+
+    context.user_data[
+        "broadcast_mode"
+    ] = True
+
+    await query.edit_message_text(
+
+        TEXTS[lang]["broadcast_start"],
+
+        parse_mode="HTML",
+
+        reply_markup=cancel_broadcast_keyboard(
+            lang
+        )
+
+    )
+
+
+async def perform_broadcast(
+    update,
+    context,
+    message
+):
+
+    if not is_admin(update):
+
+        return
+
+    lang = get_lang(
+        update,
+        context
+    )
+
+    context.user_data.pop(
+        "broadcast_mode",
+        None
+    )
+
+    users = db_get_users()
+
+    sent = 0
+    failed = 0
+
+    status = await update.effective_chat.send_message(
+        "📢 Рассылка запущена...\n\n"
+        "⏳ Подготавливаю пользователей..."
+    )
+
+    for user in users:
+
+        user_id = user["user_id"]
+
+        try:
+
+            await context.bot.copy_message(
+
+                chat_id=user_id,
+
+                from_chat_id=message.chat_id,
+
+                message_id=message.message_id
+
+            )
+
+            sent += 1
+
+            await asyncio.sleep(
+                0.05
+            )
+
+        except Exception as error:
+
+            failed += 1
+
+            print(
+                "BROADCAST ERROR:",
+                user_id,
+                repr(error)
+            )
+
+            # Если пользователь заблокировал бота,
+            # помечаем его в базе.
+
+            if "blocked" in str(
+                error
+            ).lower():
+
+                db_mark_blocked(
+                    user_id
+                )
+
+    await status.edit_text(
+
+        TEXTS[lang]["broadcast_done"].format(
+
+            sent=sent,
+
+            failed=failed
 
         ),
 
@@ -1320,11 +2021,27 @@ async def callback_handler(
 
     data = query.data
 
-    lang = get_lang(context)
+    user = query.from_user
 
-    # -----------------------------------------------------
-    # VIDEO BUTTON
-    # -----------------------------------------------------
+    # Создаём/обновляем пользователя,
+    # даже если действие пришло через кнопку.
+
+    db_register_user(user)
+
+    if "lang" not in context.user_data:
+
+        context.user_data["lang"] = (
+            db_get_language(user.id)
+        )
+
+    lang = get_lang(
+        None,
+        context
+    )
+
+    # =====================================================
+    # CHOOSE VIDEO
+    # =====================================================
 
     if data == "choose_video":
 
@@ -1346,9 +2063,9 @@ async def callback_handler(
 
         return
 
-    # -----------------------------------------------------
-    # AUDIO BUTTON
-    # -----------------------------------------------------
+    # =====================================================
+    # CHOOSE AUDIO
+    # =====================================================
 
     if data == "choose_audio":
 
@@ -1370,9 +2087,9 @@ async def callback_handler(
 
         return
 
-    # -----------------------------------------------------
-    # DOWNLOAD VIDEO AFTER URL
-    # -----------------------------------------------------
+    # =====================================================
+    # DOWNLOAD VIDEO
+    # =====================================================
 
     if data == "download_video":
 
@@ -1383,105 +2100,28 @@ async def callback_handler(
         if not url:
 
             await query.edit_message_text(
-                TEXTS[lang]["bad_link"]
+                TEXTS[lang]["bad_link"],
+                parse_mode="HTML"
             )
 
             return
 
-        await query.edit_message_text(
-            TEXTS[lang]["processing_video"]
+        await query.message.delete()
+
+        fake_update = update
+
+        await download_media(
+            fake_update,
+            context,
+            url,
+            "video"
         )
-
-        try:
-
-            with tempfile.TemporaryDirectory() as temp_dir:
-
-                output = os.path.join(
-                    temp_dir,
-                    "%(title).80s.%(ext)s"
-                )
-
-                options = {
-
-                    "outtmpl": output,
-
-                    "format": (
-                        "best[ext=mp4]/best"
-                    ),
-
-                    "noplaylist": True,
-
-                    "quiet": True,
-
-                    "no_warnings": True,
-
-                    "restrictfilenames": True,
-
-                }
-
-                with yt_dlp.YoutubeDL(
-                    options
-                ) as ydl:
-
-                    info = ydl.extract_info(
-                        url,
-                        download=True
-                    )
-
-                    filename = (
-                        ydl.prepare_filename(
-                            info
-                        )
-                    )
-
-                if not os.path.exists(
-                    filename
-                ):
-
-                    raise FileNotFoundError()
-
-                await query.edit_message_text(
-                    TEXTS[lang]["video_ready"]
-                )
-
-                with open(
-                    filename,
-                    "rb"
-                ) as video:
-
-                    await query.message.reply_video(
-                        video=video,
-                        caption="🎬 TOJSAVER"
-                    )
-
-                context.user_data["videos"] = (
-                    context.user_data.get(
-                        "videos",
-                        0
-                    ) + 1
-                )
-
-                add_download(
-                    context,
-                    "video"
-                )
-
-        except Exception as error:
-
-            print(
-                "VIDEO CALLBACK ERROR:",
-                error
-            )
-
-            await query.edit_message_text(
-                TEXTS[lang]["error"]
-            )
 
         return
 
-    # -----------------------------------------------------
-    # DOWNLOAD AUDIO AFTER URL
-    # -----------------------------------------------------
+    # =====================================================
+    # DOWNLOAD AUDIO
+    # =====================================================
 
     if data == "download_audio":
 
@@ -1492,124 +2132,28 @@ async def callback_handler(
         if not url:
 
             await query.edit_message_text(
-                TEXTS[lang]["bad_link"]
+                TEXTS[lang]["bad_link"],
+                parse_mode="HTML"
             )
 
             return
 
-        await query.edit_message_text(
-            TEXTS[lang]["processing_audio"]
+        await query.message.delete()
+
+        fake_update = update
+
+        await download_media(
+            fake_update,
+            context,
+            url,
+            "audio"
         )
-
-        try:
-
-            with tempfile.TemporaryDirectory() as temp_dir:
-
-                output = os.path.join(
-                    temp_dir,
-                    "%(title).80s.%(ext)s"
-                )
-
-                options = {
-
-                    "outtmpl": output,
-
-                    "format": "bestaudio/best",
-
-                    "noplaylist": True,
-
-                    "quiet": True,
-
-                    "no_warnings": True,
-
-                    "restrictfilenames": True,
-
-                    "postprocessors": [
-
-                        {
-
-                            "key": "FFmpegExtractAudio",
-
-                            "preferredcodec": "mp3",
-
-                            "preferredquality": "192",
-
-                        }
-
-                    ],
-
-                }
-
-                with yt_dlp.YoutubeDL(
-                    options
-                ) as ydl:
-
-                    info = ydl.extract_info(
-                        url,
-                        download=True
-                    )
-
-                    filename = (
-                        ydl.prepare_filename(
-                            info
-                        )
-                    )
-
-                    filename = (
-                        os.path.splitext(
-                            filename
-                        )[0]
-                        + ".mp3"
-                    )
-
-                if not os.path.exists(
-                    filename
-                ):
-
-                    raise FileNotFoundError()
-
-                await query.edit_message_text(
-                    TEXTS[lang]["audio_ready"]
-                )
-
-                with open(
-                    filename,
-                    "rb"
-                ) as audio:
-
-                    await query.message.reply_audio(
-                        audio=audio,
-                        caption="🎵 TOJSAVER"
-                    )
-
-                context.user_data["audios"] = (
-                    context.user_data.get(
-                        "audios",
-                        0
-                    ) + 1
-                )
-
-                add_download(
-                    context,
-                    "audio"
-                )
-
-        except Exception as error:
-
-            print(
-                "AUDIO CALLBACK ERROR:",
-                error
-            )
-
-            await query.edit_message_text(
-                TEXTS[lang]["error"]
-            )
 
         return
 
-    # -----------------------------------------------------
+    # =====================================================
     # LANGUAGE
-    # -----------------------------------------------------
+    # =====================================================
 
     if data == "language":
 
@@ -1627,20 +2171,30 @@ async def callback_handler(
 
         return
 
-    # -----------------------------------------------------
+    # =====================================================
     # CHANGE LANGUAGE
-    # -----------------------------------------------------
+    # =====================================================
 
     if data.startswith("lang_"):
 
         new_lang = data.replace(
             "lang_",
-            ""
+            "",
+            1
         )
+
+        if new_lang not in TEXTS:
+
+            return
 
         context.user_data[
             "lang"
         ] = new_lang
+
+        db_set_language(
+            user.id,
+            new_lang
+        )
 
         await query.edit_message_text(
 
@@ -1652,7 +2206,7 @@ async def callback_handler(
 
                 new_lang,
 
-                query.from_user.id == ADMIN_ID
+                user.id == ADMIN_ID
 
             )
 
@@ -1660,9 +2214,9 @@ async def callback_handler(
 
         return
 
-    # -----------------------------------------------------
+    # =====================================================
     # USER STATS
-    # -----------------------------------------------------
+    # =====================================================
 
     if data == "user_stats":
 
@@ -1673,9 +2227,9 @@ async def callback_handler(
 
         return
 
-    # -----------------------------------------------------
+    # =====================================================
     # ADMIN PANEL
-    # -----------------------------------------------------
+    # =====================================================
 
     if data == "admin_panel":
 
@@ -1686,9 +2240,9 @@ async def callback_handler(
 
         return
 
-    # -----------------------------------------------------
+    # =====================================================
     # ADMIN STATS
-    # -----------------------------------------------------
+    # =====================================================
 
     if data == "admin_stats":
 
@@ -1699,22 +2253,22 @@ async def callback_handler(
 
         return
 
-    # -----------------------------------------------------
+    # =====================================================
     # ADMIN USERS
-    # -----------------------------------------------------
+    # =====================================================
 
     if data == "admin_users":
 
-        await show_admin_users(
+        await show_users_list(
             query,
             context
         )
 
         return
 
-    # -----------------------------------------------------
+    # =====================================================
     # ADMIN DOWNLOADS
-    # -----------------------------------------------------
+    # =====================================================
 
     if data == "admin_downloads":
 
@@ -1725,15 +2279,68 @@ async def callback_handler(
 
         return
 
-    # -----------------------------------------------------
-    # BACK TO MAIN
-    # -----------------------------------------------------
+    # =====================================================
+    # ADMIN REFRESH
+    # =====================================================
+
+    if data == "admin_refresh":
+
+        await show_admin_stats(
+            query,
+            context
+        )
+
+        return
+
+    # =====================================================
+    # ADMIN BROADCAST
+    # =====================================================
+
+    if data == "admin_broadcast":
+
+        await start_broadcast(
+            query,
+            context
+        )
+
+        return
+
+    # =====================================================
+    # CANCEL BROADCAST
+    # =====================================================
+
+    if data == "cancel_broadcast":
+
+        context.user_data.pop(
+            "broadcast_mode",
+            None
+        )
+
+        await query.edit_message_text(
+
+            TEXTS[lang]["broadcast_cancel"],
+
+            reply_markup=admin_keyboard(
+                lang
+            )
+
+        )
+
+        return
+
+    # =====================================================
+    # BACK MAIN
+    # =====================================================
 
     if data == "back_main":
 
-        # Сбрасываем режим скачивания
         context.user_data.pop(
             "download_mode",
+            None
+        )
+
+        context.user_data.pop(
+            "broadcast_mode",
             None
         )
 
@@ -1747,13 +2354,12 @@ async def callback_handler(
 
                 lang,
 
-                query.from_user.id == ADMIN_ID
+                user.id == ADMIN_ID
 
             )
 
         )
 
-        # Запоминаем это сообщение
         context.user_data[
             "menu_message_id"
         ] = query.message.message_id
@@ -1771,8 +2377,55 @@ async def error_handler(
 ):
 
     print(
-        "BOT ERROR:",
-        context.error
+        "========================================"
+    )
+
+    print(
+        "TOJSAVER ERROR:"
+    )
+
+    print(
+        repr(context.error)
+    )
+
+    print(
+        "========================================"
+    )
+
+
+# =========================================================
+# STARTUP
+# =========================================================
+
+async def post_init(
+    application
+):
+
+    init_database()
+
+    print(
+        "========================================"
+    )
+
+    print(
+        "🎬 TOJSAVER V2"
+    )
+
+    print(
+        "🚀 Bot starting..."
+    )
+
+    print(
+        "🗄️ Database initialized"
+    )
+
+    print(
+        "👑 Admin:",
+        ADMIN_ID
+    )
+
+    print(
+        "========================================"
     )
 
 
@@ -1788,14 +2441,20 @@ def main():
             "BOT_TOKEN не найден в GitHub Secrets"
         )
 
+    init_database()
+
     app = (
         Application
         .builder()
         .token(TOKEN)
+        .post_init(post_init)
         .build()
     )
 
-    # /start
+    # -----------------------------------------------------
+    # COMMANDS
+    # -----------------------------------------------------
+
     app.add_handler(
         CommandHandler(
             "start",
@@ -1803,7 +2462,6 @@ def main():
         )
     )
 
-    # /admin
     app.add_handler(
         CommandHandler(
             "admin",
@@ -1811,43 +2469,47 @@ def main():
         )
     )
 
-    # Text messages / links
+    # -----------------------------------------------------
+    # TEXT
+    # -----------------------------------------------------
+
     app.add_handler(
         MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
-            handle_link
+            filters.TEXT
+            & ~filters.COMMAND,
+            handle_text
         )
     )
 
-    # Buttons
+    # -----------------------------------------------------
+    # CALLBACKS
+    # -----------------------------------------------------
+
     app.add_handler(
         CallbackQueryHandler(
             callback_handler
         )
     )
 
-    # Errors
+    # -----------------------------------------------------
+    # ERRORS
+    # -----------------------------------------------------
+
     app.add_error_handler(
         error_handler
     )
 
     print(
-        "================================"
+        "🚀 TOJSAVER V2 is running..."
     )
 
-    print(
-        "TOJSAVER PRO STARTED"
+    app.run_polling(
+        drop_pending_updates=True
     )
-
-    print(
-        "================================"
-    )
-
-    app.run_polling()
 
 
 # =========================================================
-# RUN
+# ENTRY POINT
 # =========================================================
 
 if __name__ == "__main__":
