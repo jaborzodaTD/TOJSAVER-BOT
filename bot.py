@@ -14,7 +14,7 @@ from telegram.ext import (
 )
 
 TOKEN = os.getenv("BOT_TOKEN")
-
+ADMIN_ID = 8479464985
 URL_PATTERN = re.compile(
     r"https?://(?:www\.)?"
     r"(?:instagram\.com|youtube\.com|youtu\.be|tiktok\.com)"
