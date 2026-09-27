@@ -56,6 +56,7 @@ TEXTS = {
             "🚀 <b>TOJSAVER</b>"
         ),
     },
+
     "tg": {
         "welcome": (
             "🎬 <b>TOJSAVER</b>\n\n"
@@ -89,6 +90,7 @@ TEXTS = {
             "🚀 <b>TOJSAVER</b>"
         ),
     },
+
     "en": {
         "welcome": (
             "🎬 <b>TOJSAVER</b>\n\n"
@@ -132,7 +134,7 @@ def get_lang(context):
 def main_keyboard(lang):
     t = TEXTS[lang]
 
-    keyboard = [
+    return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
                 t["download_video"],
@@ -155,37 +157,17 @@ def main_keyboard(lang):
                 callback_data="language"
             ),
         ],
-    ]
-
-    return InlineKeyboardMarkup(keyboard)
+    ])
 
 
-def language_keyboard():
+def language_keyboard(lang):
+    t = TEXTS[lang]
+
     return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(
-                "🇹🇯 Тоҷикӣ",
-                callback_data="lang_tg"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "🇷🇺 Русский",
-                callback_data="lang_ru"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "🇬🇧 English",
-                callback_data="lang_en"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "⬅️",
-                callback_data="back"
-            )
-        ],
+        [InlineKeyboardButton("🇹🇯 Тоҷикӣ", callback_data="lang_tg")],
+        [InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru")],
+        [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")],
+        [InlineKeyboardButton(t["back"], callback_data="back")],
     ])
 
 
@@ -223,13 +205,41 @@ def format_keyboard(lang):
     ])
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_main_menu_message(message, context):
     lang = get_lang(context)
 
-    await update.message.reply_text(
+    sent = await message.reply_text(
         TEXTS[lang]["welcome"],
         parse_mode="HTML",
         reply_markup=main_keyboard(lang),
+    )
+
+    context.user_data["menu_message_id"] = sent.message_id
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(context)
+
+    # Если это уже сохранённое главное меню,
+    # просто обновляем его вместо создания нового.
+    menu_id = context.user_data.get("menu_message_id")
+
+    if menu_id:
+        try:
+            await context.bot.edit_message_text(
+                chat_id=update.effective_chat.id,
+                message_id=menu_id,
+                text=TEXTS[lang]["welcome"],
+                parse_mode="HTML",
+                reply_markup=main_keyboard(lang),
+            )
+            return
+        except Exception:
+            pass
+
+    await show_main_menu_message(
+        update.message,
+        context
     )
 
 
@@ -241,6 +251,8 @@ async def show_main_menu(query, context):
         parse_mode="HTML",
         reply_markup=main_keyboard(lang),
     )
+
+    context.user_data["menu_message_id"] = query.message.message_id
 
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -256,16 +268,26 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = match.group(0)
 
-    mode = context.user_data.get("download_mode")
-
     context.user_data["url"] = url
 
+    mode = context.user_data.get("download_mode")
+
     if mode == "video":
-        await download_media_direct(update, context, "video")
+        context.user_data["download_mode"] = None
+        await download_media_direct(
+            update,
+            context,
+            "video"
+        )
         return
 
     if mode == "audio":
-        await download_media_direct(update, context, "audio")
+        context.user_data["download_mode"] = None
+        await download_media_direct(
+            update,
+            context,
+            "audio"
+        )
         return
 
     await update.message.reply_text(
@@ -284,7 +306,7 @@ async def language_menu(update, context):
     await query.edit_message_text(
         TEXTS[lang]["language_title"],
         parse_mode="HTML",
-        reply_markup=language_keyboard(),
+        reply_markup=language_keyboard(lang),
     )
 
 
@@ -296,10 +318,7 @@ async def change_language(update, context):
 
     context.user_data["lang"] = lang
 
-    await query.edit_message_text(
-        TEXTS[lang]["language_changed"],
-        reply_markup=main_keyboard(lang),
-    )
+    await show_main_menu(query, context)
 
 
 async def show_stats(update, context):
@@ -330,7 +349,9 @@ async def download_media_direct(update, context, media_type):
     url = context.user_data.get("url")
 
     if not url:
-        await update.message.reply_text(t["bad_link"])
+        await update.message.reply_text(
+            t["bad_link"]
+        )
         return
 
     if media_type == "video":
@@ -366,7 +387,6 @@ async def download_media_direct(update, context, media_type):
                         url,
                         download=True
                     )
-
                     filename = ydl.prepare_filename(info)
 
                 if not os.path.exists(filename):
@@ -392,7 +412,10 @@ async def download_media_direct(update, context, media_type):
                     )
 
                 context.user_data["video_count"] = (
-                    context.user_data.get("video_count", 0) + 1
+                    context.user_data.get(
+                        "video_count",
+                        0
+                    ) + 1
                 )
 
             else:
@@ -420,7 +443,6 @@ async def download_media_direct(update, context, media_type):
                     )
 
                     filename = ydl.prepare_filename(info)
-
                     filename = (
                         os.path.splitext(filename)[0]
                         + ".mp3"
@@ -441,7 +463,10 @@ async def download_media_direct(update, context, media_type):
                     )
 
                 context.user_data["audio_count"] = (
-                    context.user_data.get("audio_count", 0) + 1
+                    context.user_data.get(
+                        "audio_count",
+                        0
+                    ) + 1
                 )
 
     except Exception as e:
@@ -501,7 +526,6 @@ async def download_media(update, context):
                         url,
                         download=True
                     )
-
                     filename = ydl.prepare_filename(info)
 
                 if not os.path.exists(filename):
@@ -527,7 +551,10 @@ async def download_media(update, context):
                     )
 
                 context.user_data["video_count"] = (
-                    context.user_data.get("video_count", 0) + 1
+                    context.user_data.get(
+                        "video_count",
+                        0
+                    ) + 1
                 )
 
             else:
@@ -555,7 +582,6 @@ async def download_media(update, context):
                     )
 
                     filename = ydl.prepare_filename(info)
-
                     filename = (
                         os.path.splitext(filename)[0]
                         + ".mp3"
@@ -576,7 +602,10 @@ async def download_media(update, context):
                     )
 
                 context.user_data["audio_count"] = (
-                    context.user_data.get("audio_count", 0) + 1
+                    context.user_data.get(
+                        "audio_count",
+                        0
+                    ) + 1
                 )
 
     except Exception as e:
@@ -603,6 +632,7 @@ async def callback_handler(update, context):
 
     elif data == "back":
         await query.answer()
+        context.user_data["download_mode"] = None
         await show_main_menu(query, context)
 
     elif data == "download_video":
